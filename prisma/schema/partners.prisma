@@ -1,0 +1,125 @@
+// ============================================================
+// PARTNERS
+//
+// ONE model serves customer, supplier and contact — Odoo's res.partner
+// pattern, adopted in Stage 1 research specifically to avoid Zoho's failure
+// mode where the same company exists as five unrelated records across apps.
+//
+// A partner is a customer AND a supplier when both flags are set. Nothing
+// duplicates.
+// ============================================================
+
+enum PartnerKind {
+  company
+  person
+}
+
+model Partner {
+  id       String      @id @default(uuid()) @db.Uuid
+  tenantId String      @db.Uuid
+  kind     PartnerKind @default(company)
+
+  /// Short human code, e.g. "ACME". Unique per tenant, used in search.
+  code        String?
+  name        String
+  /// Sub-contacts point at their employer.
+  parentId    String? @db.Uuid
+
+  isCustomer Boolean @default(false)
+  isSupplier Boolean @default(false)
+
+  email String?
+  phone String?
+  website String?
+
+  /// Defaults inherited onto documents; overridable per document.
+  currency   String? @db.Char(3)
+  priceListId String? @db.Uuid
+  /// Payment terms in days. 0 = due on receipt.
+  paymentTermDays Int @default(0)
+  creditLimit Decimal? @db.Decimal(19, 4)
+
+  notes String?
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  createdBy    String?   @db.Uuid
+  updatedBy    String?   @db.Uuid
+  deletedAt    DateTime?
+  customFields Json      @default("{}")
+
+  parent    Partner?         @relation("PartnerHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children  Partner[]        @relation("PartnerHierarchy")
+  priceList PriceList?       @relation(fields: [priceListId], references: [id], onDelete: SetNull)
+  addresses PartnerAddress[]
+  taxInfo   PartnerTaxInfo[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, name])
+  @@index([tenantId, isCustomer])
+  @@index([tenantId, isSupplier])
+  @@map("partner")
+}
+
+enum AddressKind {
+  billing
+  shipping
+  other
+}
+
+model PartnerAddress {
+  id        String      @id @default(uuid()) @db.Uuid
+  tenantId  String      @db.Uuid
+  partnerId String      @db.Uuid
+  kind      AddressKind @default(billing)
+  isDefault Boolean     @default(false)
+
+  label      String?
+  line1      String
+  line2      String?
+  city       String?
+  /// State / county / emirate. Drives place-of-supply for India GST and
+  /// jurisdiction sourcing for US sales tax.
+  region     String?
+  regionCode String?
+  postalCode String?
+  country    String  @db.Char(2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, partnerId])
+  @@map("partner_address")
+}
+
+/// GSTIN (India) / VAT number (UK, EU) / TRN (UAE) / EIN (US).
+/// A partner can hold several when it trades from several registrations —
+/// common for Indian businesses with per-state GSTINs.
+model PartnerTaxInfo {
+  id        String @id @default(uuid()) @db.Uuid
+  tenantId  String @db.Uuid
+  partnerId String @db.Uuid
+
+  country String  @db.Char(2)
+  /// The registration number itself.
+  taxId   String
+  /// India: the state this GSTIN is registered in.
+  region  String?
+  /// Registered businesses charge/reclaim tax; unregistered ones may not.
+  isRegistered Boolean @default(true)
+  /// EU/UK B2B cross-border reverse charge applies.
+  reverseCharge Boolean @default(false)
+  /// US: buyer holds a resale/exemption certificate.
+  exemptionCertificate String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@unique([partnerId, country, taxId])
+  @@index([tenantId, partnerId])
+  @@map("partner_tax_info")
+}

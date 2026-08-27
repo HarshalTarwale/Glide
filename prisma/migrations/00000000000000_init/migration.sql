@@ -1,6 +1,141 @@
 -- CreateSchema
 CREATE SCHEMA IF NOT EXISTS "public";
 
+-- CreateEnum
+CREATE TYPE "ProductType" AS ENUM ('goods', 'service');
+
+-- CreateEnum
+CREATE TYPE "TrackingMode" AS ENUM ('none', 'lot', 'serial');
+
+-- CreateEnum
+CREATE TYPE "LocationKind" AS ENUM ('internal', 'external', 'adjustment', 'transit');
+
+-- CreateEnum
+CREATE TYPE "PartnerKind" AS ENUM ('company', 'person');
+
+-- CreateEnum
+CREATE TYPE "AddressKind" AS ENUM ('billing', 'shipping', 'other');
+
+-- CreateTable
+CREATE TABLE "product_category" (
+    "id" UUID NOT NULL,
+    "tenantId" UUID NOT NULL,
+    "name" TEXT NOT NULL,
+    "parentId" UUID,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "deletedAt" TIMESTAMP(3),
+
+    CONSTRAINT "product_category_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "unit_of_measure" (
+    "id" UUID NOT NULL,
+    "tenantId" UUID NOT NULL,
+    "name" TEXT NOT NULL,
+    "code" TEXT NOT NULL,
+    "category" TEXT NOT NULL DEFAULT 'unit',
+    "factor" DECIMAL(19,6) NOT NULL DEFAULT 1,
+    "isReference" BOOLEAN NOT NULL DEFAULT false,
+    "precision" INTEGER NOT NULL DEFAULT 2,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "unit_of_measure_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "tax_category" (
+    "id" UUID NOT NULL,
+    "tenantId" UUID NOT NULL,
+    "name" TEXT NOT NULL,
+    "key" TEXT NOT NULL DEFAULT 'standard',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "tax_category_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "tax_rate" (
+    "id" UUID NOT NULL,
+    "tenantId" UUID NOT NULL,
+    "name" TEXT NOT NULL,
+    "country" CHAR(2) NOT NULL,
+    "region" TEXT,
+    "rate" DECIMAL(9,4) NOT NULL,
+    "taxCategoryId" UUID,
+    "level" TEXT NOT NULL DEFAULT 'national',
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "tax_rate_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "product" (
+    "id" UUID NOT NULL,
+    "tenantId" UUID NOT NULL,
+    "type" "ProductType" NOT NULL DEFAULT 'goods',
+    "sku" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "description" TEXT,
+    "barcode" TEXT,
+    "categoryId" UUID,
+    "uomId" UUID NOT NULL,
+    "purchaseUomId" UUID,
+    "salesPrice" DECIMAL(19,4) NOT NULL DEFAULT 0,
+    "costPrice" DECIMAL(19,4) NOT NULL DEFAULT 0,
+    "taxCategoryId" UUID,
+    "hsnCode" TEXT,
+    "tracking" "TrackingMode" NOT NULL DEFAULT 'none',
+    "reorderPoint" DECIMAL(19,6),
+    "isSellable" BOOLEAN NOT NULL DEFAULT true,
+    "isPurchasable" BOOLEAN NOT NULL DEFAULT true,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "createdBy" UUID,
+    "updatedBy" UUID,
+    "deletedAt" TIMESTAMP(3),
+    "customFields" JSONB NOT NULL DEFAULT '{}',
+
+    CONSTRAINT "product_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "price_list" (
+    "id" UUID NOT NULL,
+    "tenantId" UUID NOT NULL,
+    "name" TEXT NOT NULL,
+    "currency" CHAR(3) NOT NULL,
+    "isDefault" BOOLEAN NOT NULL DEFAULT false,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "validFrom" DATE,
+    "validTo" DATE,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "deletedAt" TIMESTAMP(3),
+
+    CONSTRAINT "price_list_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "price_list_item" (
+    "id" UUID NOT NULL,
+    "tenantId" UUID NOT NULL,
+    "priceListId" UUID NOT NULL,
+    "productId" UUID NOT NULL,
+    "minQty" DECIMAL(19,6) NOT NULL DEFAULT 0,
+    "price" DECIMAL(19,4) NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "price_list_item_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateTable
 CREATE TABLE "tenant" (
     "id" UUID NOT NULL,
@@ -219,6 +354,109 @@ CREATE TABLE "saved_view" (
 );
 
 -- CreateTable
+CREATE TABLE "warehouse" (
+    "id" UUID NOT NULL,
+    "tenantId" UUID NOT NULL,
+    "companyId" UUID NOT NULL,
+    "code" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "addressLine1" TEXT,
+    "city" TEXT,
+    "region" TEXT,
+    "postalCode" TEXT,
+    "country" CHAR(2),
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "deletedAt" TIMESTAMP(3),
+
+    CONSTRAINT "warehouse_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "location" (
+    "id" UUID NOT NULL,
+    "tenantId" UUID NOT NULL,
+    "warehouseId" UUID,
+    "kind" "LocationKind" NOT NULL DEFAULT 'internal',
+    "code" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "parentId" UUID,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "deletedAt" TIMESTAMP(3),
+
+    CONSTRAINT "location_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "partner" (
+    "id" UUID NOT NULL,
+    "tenantId" UUID NOT NULL,
+    "kind" "PartnerKind" NOT NULL DEFAULT 'company',
+    "code" TEXT,
+    "name" TEXT NOT NULL,
+    "parentId" UUID,
+    "isCustomer" BOOLEAN NOT NULL DEFAULT false,
+    "isSupplier" BOOLEAN NOT NULL DEFAULT false,
+    "email" TEXT,
+    "phone" TEXT,
+    "website" TEXT,
+    "currency" CHAR(3),
+    "priceListId" UUID,
+    "paymentTermDays" INTEGER NOT NULL DEFAULT 0,
+    "creditLimit" DECIMAL(19,4),
+    "notes" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "createdBy" UUID,
+    "updatedBy" UUID,
+    "deletedAt" TIMESTAMP(3),
+    "customFields" JSONB NOT NULL DEFAULT '{}',
+
+    CONSTRAINT "partner_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "partner_address" (
+    "id" UUID NOT NULL,
+    "tenantId" UUID NOT NULL,
+    "partnerId" UUID NOT NULL,
+    "kind" "AddressKind" NOT NULL DEFAULT 'billing',
+    "isDefault" BOOLEAN NOT NULL DEFAULT false,
+    "label" TEXT,
+    "line1" TEXT NOT NULL,
+    "line2" TEXT,
+    "city" TEXT,
+    "region" TEXT,
+    "regionCode" TEXT,
+    "postalCode" TEXT,
+    "country" CHAR(2) NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "partner_address_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "partner_tax_info" (
+    "id" UUID NOT NULL,
+    "tenantId" UUID NOT NULL,
+    "partnerId" UUID NOT NULL,
+    "country" CHAR(2) NOT NULL,
+    "taxId" TEXT NOT NULL,
+    "region" TEXT,
+    "isRegistered" BOOLEAN NOT NULL DEFAULT true,
+    "reverseCharge" BOOLEAN NOT NULL DEFAULT false,
+    "exemptionCertificate" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "partner_tax_info_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "country" (
     "code" CHAR(2) NOT NULL,
     "name" TEXT NOT NULL,
@@ -254,6 +492,48 @@ CREATE TABLE "exchange_rate" (
 
     CONSTRAINT "exchange_rate_pkey" PRIMARY KEY ("id")
 );
+
+-- CreateIndex
+CREATE INDEX "product_category_tenantId_idx" ON "product_category"("tenantId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "product_category_tenantId_name_parentId_key" ON "product_category"("tenantId", "name", "parentId");
+
+-- CreateIndex
+CREATE INDEX "unit_of_measure_tenantId_idx" ON "unit_of_measure"("tenantId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "unit_of_measure_tenantId_code_key" ON "unit_of_measure"("tenantId", "code");
+
+-- CreateIndex
+CREATE INDEX "tax_category_tenantId_idx" ON "tax_category"("tenantId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "tax_category_tenantId_key_key" ON "tax_category"("tenantId", "key");
+
+-- CreateIndex
+CREATE INDEX "tax_rate_tenantId_country_region_idx" ON "tax_rate"("tenantId", "country", "region");
+
+-- CreateIndex
+CREATE INDEX "product_tenantId_name_idx" ON "product"("tenantId", "name");
+
+-- CreateIndex
+CREATE INDEX "product_tenantId_categoryId_idx" ON "product"("tenantId", "categoryId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "product_tenantId_sku_key" ON "product"("tenantId", "sku");
+
+-- CreateIndex
+CREATE INDEX "price_list_tenantId_idx" ON "price_list"("tenantId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "price_list_tenantId_name_key" ON "price_list"("tenantId", "name");
+
+-- CreateIndex
+CREATE INDEX "price_list_item_tenantId_priceListId_idx" ON "price_list_item"("tenantId", "priceListId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "price_list_item_priceListId_productId_minQty_key" ON "price_list_item"("priceListId", "productId", "minQty");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "tenant_slug_key" ON "tenant"("slug");
@@ -325,10 +605,67 @@ CREATE INDEX "attachment_tenantId_entityType_entityId_idx" ON "attachment"("tena
 CREATE INDEX "saved_view_tenantId_resource_idx" ON "saved_view"("tenantId", "resource");
 
 -- CreateIndex
+CREATE INDEX "warehouse_tenantId_idx" ON "warehouse"("tenantId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "warehouse_tenantId_code_key" ON "warehouse"("tenantId", "code");
+
+-- CreateIndex
+CREATE INDEX "location_tenantId_warehouseId_idx" ON "location"("tenantId", "warehouseId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "location_tenantId_code_key" ON "location"("tenantId", "code");
+
+-- CreateIndex
+CREATE INDEX "partner_tenantId_name_idx" ON "partner"("tenantId", "name");
+
+-- CreateIndex
+CREATE INDEX "partner_tenantId_isCustomer_idx" ON "partner"("tenantId", "isCustomer");
+
+-- CreateIndex
+CREATE INDEX "partner_tenantId_isSupplier_idx" ON "partner"("tenantId", "isSupplier");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "partner_tenantId_code_key" ON "partner"("tenantId", "code");
+
+-- CreateIndex
+CREATE INDEX "partner_address_tenantId_partnerId_idx" ON "partner_address"("tenantId", "partnerId");
+
+-- CreateIndex
+CREATE INDEX "partner_tax_info_tenantId_partnerId_idx" ON "partner_tax_info"("tenantId", "partnerId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "partner_tax_info_partnerId_country_taxId_key" ON "partner_tax_info"("partnerId", "country", "taxId");
+
+-- CreateIndex
 CREATE INDEX "exchange_rate_asOf_idx" ON "exchange_rate"("asOf");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "exchange_rate_from_to_asOf_key" ON "exchange_rate"("from", "to", "asOf");
+
+-- AddForeignKey
+ALTER TABLE "product_category" ADD CONSTRAINT "product_category_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "product_category"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "tax_rate" ADD CONSTRAINT "tax_rate_taxCategoryId_fkey" FOREIGN KEY ("taxCategoryId") REFERENCES "tax_category"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "product" ADD CONSTRAINT "product_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "product_category"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "product" ADD CONSTRAINT "product_uomId_fkey" FOREIGN KEY ("uomId") REFERENCES "unit_of_measure"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "product" ADD CONSTRAINT "product_purchaseUomId_fkey" FOREIGN KEY ("purchaseUomId") REFERENCES "unit_of_measure"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "product" ADD CONSTRAINT "product_taxCategoryId_fkey" FOREIGN KEY ("taxCategoryId") REFERENCES "tax_category"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "price_list_item" ADD CONSTRAINT "price_list_item_priceListId_fkey" FOREIGN KEY ("priceListId") REFERENCES "price_list"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "price_list_item" ADD CONSTRAINT "price_list_item_productId_fkey" FOREIGN KEY ("productId") REFERENCES "product"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "company" ADD CONSTRAINT "company_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -377,4 +714,22 @@ ALTER TABLE "saved_view" ADD CONSTRAINT "saved_view_tenantId_fkey" FOREIGN KEY (
 
 -- AddForeignKey
 ALTER TABLE "saved_view" ADD CONSTRAINT "saved_view_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "user"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "location" ADD CONSTRAINT "location_warehouseId_fkey" FOREIGN KEY ("warehouseId") REFERENCES "warehouse"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "location" ADD CONSTRAINT "location_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "location"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "partner" ADD CONSTRAINT "partner_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "partner"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "partner" ADD CONSTRAINT "partner_priceListId_fkey" FOREIGN KEY ("priceListId") REFERENCES "price_list"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "partner_address" ADD CONSTRAINT "partner_address_partnerId_fkey" FOREIGN KEY ("partnerId") REFERENCES "partner"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "partner_tax_info" ADD CONSTRAINT "partner_tax_info_partnerId_fkey" FOREIGN KEY ("partnerId") REFERENCES "partner"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 

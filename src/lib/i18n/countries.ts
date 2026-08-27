@@ -97,12 +97,85 @@ export const COUNTRIES: Record<string, CountryPack> = {
     pricesIncludeTax: true,
     timeZone: "Europe/Berlin",
   },
+  FR: {
+    code: "FR",
+    name: "France",
+    locale: "en-IE",
+    currency: "EUR",
+    taxRegime: "VAT_EU",
+    taxLabel: "VAT",
+    taxIdLabel: "VAT ID",
+    regionLabel: "Region",
+    pricesIncludeTax: true,
+    timeZone: "Europe/Paris",
+  },
+  IT: {
+    code: "IT",
+    name: "Italy",
+    locale: "en-IE",
+    currency: "EUR",
+    taxRegime: "VAT_EU",
+    taxLabel: "VAT",
+    taxIdLabel: "Partita IVA",
+    regionLabel: "Province",
+    pricesIncludeTax: true,
+    timeZone: "Europe/Rome",
+  },
+  ES: {
+    code: "ES",
+    name: "Spain",
+    locale: "en-IE",
+    currency: "EUR",
+    taxRegime: "VAT_EU",
+    taxLabel: "VAT",
+    taxIdLabel: "NIF",
+    regionLabel: "Province",
+    pricesIncludeTax: true,
+    timeZone: "Europe/Madrid",
+  },
+  NL: {
+    code: "NL",
+    name: "Netherlands",
+    locale: "en-IE",
+    currency: "EUR",
+    taxRegime: "VAT_EU",
+    taxLabel: "VAT",
+    taxIdLabel: "BTW number",
+    regionLabel: "Province",
+    pricesIncludeTax: true,
+    timeZone: "Europe/Amsterdam",
+  },
+  IE: {
+    code: "IE",
+    name: "Ireland",
+    locale: "en-IE",
+    currency: "EUR",
+    taxRegime: "VAT_EU",
+    taxLabel: "VAT",
+    taxIdLabel: "VAT number",
+    regionLabel: "County",
+    pricesIncludeTax: true,
+    timeZone: "Europe/Dublin",
+  },
 };
 
 export const DEFAULT_COUNTRY = "IN";
 
+/**
+ * For DISPLAY only. Falls back to the default country so a screen never
+ * crashes on an unknown code.
+ *
+ * Never use this to decide tax: see resolveRegimeId() in lib/tax, which
+ * returns NONE for an unknown country rather than silently applying the
+ * default country's tax regime.
+ */
 export function getCountry(code: string): CountryPack {
   return COUNTRIES[code] ?? COUNTRIES[DEFAULT_COUNTRY];
+}
+
+/** Strict lookup. Returns undefined rather than guessing. */
+export function findCountry(code: string): CountryPack | undefined {
+  return COUNTRIES[code];
 }
 
 export const COUNTRY_LIST = Object.values(COUNTRIES);

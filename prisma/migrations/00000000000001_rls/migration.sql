@@ -44,6 +44,48 @@ CREATE POLICY tenant_isolation ON "tenant"
   )
   WITH CHECK ("id" = app_current_tenant());
 
+ALTER TABLE "product_category" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "product_category" FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON "product_category"
+  USING ("tenantId" = app_current_tenant())
+  WITH CHECK ("tenantId" = app_current_tenant());
+
+ALTER TABLE "unit_of_measure" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "unit_of_measure" FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON "unit_of_measure"
+  USING ("tenantId" = app_current_tenant())
+  WITH CHECK ("tenantId" = app_current_tenant());
+
+ALTER TABLE "tax_category" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "tax_category" FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON "tax_category"
+  USING ("tenantId" = app_current_tenant())
+  WITH CHECK ("tenantId" = app_current_tenant());
+
+ALTER TABLE "tax_rate" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "tax_rate" FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON "tax_rate"
+  USING ("tenantId" = app_current_tenant())
+  WITH CHECK ("tenantId" = app_current_tenant());
+
+ALTER TABLE "product" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "product" FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON "product"
+  USING ("tenantId" = app_current_tenant())
+  WITH CHECK ("tenantId" = app_current_tenant());
+
+ALTER TABLE "price_list" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "price_list" FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON "price_list"
+  USING ("tenantId" = app_current_tenant())
+  WITH CHECK ("tenantId" = app_current_tenant());
+
+ALTER TABLE "price_list_item" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "price_list_item" FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON "price_list_item"
+  USING ("tenantId" = app_current_tenant())
+  WITH CHECK ("tenantId" = app_current_tenant());
+
 ALTER TABLE "company" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "company" FORCE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON "company"
@@ -89,6 +131,36 @@ CREATE POLICY tenant_isolation ON "attachment"
 ALTER TABLE "saved_view" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "saved_view" FORCE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON "saved_view"
+  USING ("tenantId" = app_current_tenant())
+  WITH CHECK ("tenantId" = app_current_tenant());
+
+ALTER TABLE "warehouse" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "warehouse" FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON "warehouse"
+  USING ("tenantId" = app_current_tenant())
+  WITH CHECK ("tenantId" = app_current_tenant());
+
+ALTER TABLE "location" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "location" FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON "location"
+  USING ("tenantId" = app_current_tenant())
+  WITH CHECK ("tenantId" = app_current_tenant());
+
+ALTER TABLE "partner" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "partner" FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON "partner"
+  USING ("tenantId" = app_current_tenant())
+  WITH CHECK ("tenantId" = app_current_tenant());
+
+ALTER TABLE "partner_address" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "partner_address" FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON "partner_address"
+  USING ("tenantId" = app_current_tenant())
+  WITH CHECK ("tenantId" = app_current_tenant());
+
+ALTER TABLE "partner_tax_info" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "partner_tax_info" FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON "partner_tax_info"
   USING ("tenantId" = app_current_tenant())
   WITH CHECK ("tenantId" = app_current_tenant());
 

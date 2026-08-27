@@ -1,0 +1,207 @@
+// ============================================================
+// CATALOG — products, units, pricing, tax classification.
+//
+// Money is NUMERIC(19,4) and quantities NUMERIC(19,6). Never Float.
+// See docs/architecture.md §3.2 for why minor-unit integers were rejected.
+// ============================================================
+
+enum ProductType {
+  /// Physical, stock-tracked. Generates stock moves.
+  goods
+  /// No stock. Sellable, never delivered.
+  service
+}
+
+enum TrackingMode {
+  none
+  lot
+  serial
+}
+
+model ProductCategory {
+  id       String  @id @default(uuid()) @db.Uuid
+  tenantId String  @db.Uuid
+  name     String
+  parentId String? @db.Uuid
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  parent   ProductCategory?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children ProductCategory[] @relation("CategoryTree")
+  products Product[]
+
+  @@unique([tenantId, name, parentId])
+  @@index([tenantId])
+  @@map("product_category")
+}
+
+/// Unit of measure. Conversions are expressed against a reference unit
+/// within the same category (weight, length, unit...), so 1 box -> 12 pcs
+/// is a factor, not a special case.
+model UnitOfMeasure {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  name     String
+  code     String
+  /// Grouping: "unit" | "weight" | "volume" | "length" | "time"
+  category String @default("unit")
+  /// Multiplier to the category's reference unit. 1 for the reference itself.
+  factor   Decimal @db.Decimal(19, 6) @default(1)
+  isReference Boolean @default(false)
+  /// Decimal places allowed when entering a quantity in this unit.
+  precision Int @default(2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products        Product[]
+  purchaseProducts Product[] @relation("PurchaseUom")
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@map("unit_of_measure")
+}
+
+/// Groups products that are taxed alike, e.g. "Standard rate",
+/// "Reduced rate", "Zero-rated", "Exempt". The tax engine resolves a
+/// TaxCategory + country into concrete rates.
+model TaxCategory {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  name     String
+  /// Stable key the tax engine matches on: "standard" | "reduced" | "zero" | "exempt"
+  key      String @default("standard")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products Product[]
+  rates    TaxRate[]
+
+  @@unique([tenantId, key])
+  @@index([tenantId])
+  @@map("tax_category")
+}
+
+/// A concrete rate for a jurisdiction. US sales tax stacks several of these
+/// (state + county + city); India, UK, EU and UAE resolve to one row that the
+/// regime may then split (CGST/SGST).
+model TaxRate {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+
+  name    String
+  country String  @db.Char(2)
+  /// State / county / city code. Null = applies country-wide.
+  region  String?
+  /// Percentage, e.g. 18 for 18%.
+  rate    Decimal @db.Decimal(9, 4)
+  taxCategoryId String? @db.Uuid
+  /// "state" | "county" | "city" | "national" — used to order a US stack.
+  level   String  @default("national")
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  taxCategory TaxCategory? @relation(fields: [taxCategoryId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, country, region])
+  @@map("tax_rate")
+}
+
+model Product {
+  id       String      @id @default(uuid()) @db.Uuid
+  tenantId String      @db.Uuid
+  type     ProductType @default(goods)
+
+  sku         String
+  name        String
+  description String?
+  barcode     String?
+
+  categoryId String? @db.Uuid
+  uomId      String  @db.Uuid
+  /// Purchasing may use a different unit than selling (buy boxes, sell pieces).
+  purchaseUomId String? @db.Uuid
+
+  /// Default list price, in the tenant's base currency. Price lists override.
+  salesPrice Decimal @db.Decimal(19, 4) @default(0)
+  /// Standard cost; AVCO valuation in P2 maintains the moving average.
+  costPrice  Decimal @db.Decimal(19, 4) @default(0)
+
+  taxCategoryId String? @db.Uuid
+  /// India HSN / SAC. Required on GST invoices above a turnover threshold.
+  hsnCode String?
+
+  tracking TrackingMode @default(none)
+  /// Stock level that triggers a reorder suggestion (P2).
+  reorderPoint Decimal? @db.Decimal(19, 6)
+
+  isSellable    Boolean @default(true)
+  isPurchasable Boolean @default(true)
+  isActive      Boolean @default(true)
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  createdBy    String?   @db.Uuid
+  updatedBy    String?   @db.Uuid
+  deletedAt    DateTime?
+  customFields Json      @default("{}")
+
+  category    ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  uom         UnitOfMeasure    @relation(fields: [uomId], references: [id])
+  purchaseUom UnitOfMeasure?   @relation("PurchaseUom", fields: [purchaseUomId], references: [id], onDelete: SetNull)
+  taxCategory TaxCategory?     @relation(fields: [taxCategoryId], references: [id], onDelete: SetNull)
+  priceItems  PriceListItem[]
+
+  @@unique([tenantId, sku])
+  @@index([tenantId, name])
+  @@index([tenantId, categoryId])
+  @@map("product")
+}
+
+model PriceList {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  name     String
+  currency String @db.Char(3)
+  isDefault Boolean @default(false)
+  isActive  Boolean @default(true)
+  validFrom DateTime? @db.Date
+  validTo   DateTime? @db.Date
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  items    PriceListItem[]
+  partners Partner[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("price_list")
+}
+
+model PriceListItem {
+  id          String @id @default(uuid()) @db.Uuid
+  tenantId    String @db.Uuid
+  priceListId String @db.Uuid
+  productId   String @db.Uuid
+
+  /// Volume pricing: this price applies at or above this quantity.
+  minQty Decimal @db.Decimal(19, 6) @default(0)
+  price  Decimal @db.Decimal(19, 4)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  priceList PriceList @relation(fields: [priceListId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([priceListId, productId, minQty])
+  @@index([tenantId, priceListId])
+  @@map("price_list_item")
+}

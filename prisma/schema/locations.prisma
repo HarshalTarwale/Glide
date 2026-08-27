@@ -1,0 +1,71 @@
+// ============================================================
+// WAREHOUSES & LOCATIONS
+//
+// Defined in P1 as master data. The StockMove ledger that references them
+// arrives in P2 — locations must exist before anything can move between them.
+// ============================================================
+
+enum LocationKind {
+  /// Physical stock the tenant owns. Counts toward on-hand.
+  internal
+  /// Outside the tenant: suppliers, customers. The counterparty of a move.
+  external
+  /// Balancing location for adjustments, so every move stays double-sided.
+  adjustment
+  /// In transit between two internal locations.
+  transit
+}
+
+model Warehouse {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  companyId String @db.Uuid
+
+  code String
+  name String
+
+  addressLine1 String?
+  city         String?
+  region       String?
+  postalCode   String?
+  country      String? @db.Char(2)
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  locations Location[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@map("warehouse")
+}
+
+/// A bin/zone inside a warehouse, or a virtual counterparty location.
+/// Every stock move in P2 is location -> location, never a bare quantity
+/// change, which is what makes the ledger balance and stay auditable.
+model Location {
+  id          String       @id @default(uuid()) @db.Uuid
+  tenantId    String       @db.Uuid
+  warehouseId String?      @db.Uuid
+  kind        LocationKind @default(internal)
+
+  code     String
+  name     String
+  parentId String? @db.Uuid
+  isActive Boolean @default(true)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  warehouse Warehouse? @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  parent    Location?  @relation("LocationTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children  Location[] @relation("LocationTree")
+
+  @@unique([tenantId, code])
+  @@index([tenantId, warehouseId])
+  @@map("location")
+}

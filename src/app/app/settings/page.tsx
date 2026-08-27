@@ -7,6 +7,8 @@ import { getContext } from "@/server/context";
 import { isDatabaseConfigured } from "@/lib/db/client";
 import { getCountry, DEFAULT_COUNTRY } from "@/lib/i18n/countries";
 import { SYSTEM_ROLES } from "@/lib/auth/permissions";
+import { TaxPreview } from "@/components/erp/tax-preview";
+import { resolveRegimeId } from "@/lib/tax";
 
 export const metadata = { title: "Settings" };
 
@@ -72,6 +74,22 @@ export default async function SettingsPage() {
                 </Field>
                 <Field label="Time zone">{pack.timeZone}</Field>
               </FieldGrid>
+            </CardBody>
+          </Card>
+
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle>Tax engine</CardTitle>
+              <span className="text-2xs text-ink-subtle">
+                Live output for {pack.name} · regime {resolveRegimeId(pack.code)}
+              </span>
+            </CardHeader>
+            <CardBody>
+              <p className="mb-3 text-xs text-ink-muted">
+                Computed by the same engine that will price every invoice. Switch
+                country in the top bar to see another regime.
+              </p>
+              <TaxPreview />
             </CardBody>
           </Card>
 

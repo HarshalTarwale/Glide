@@ -71,7 +71,17 @@ That last clause is the real acceptance criterion. Everything else in P0 is plum
 
 ---
 
-### P1 — Master data
+### P1 — Master data  ·  *schema, tax engine and query layer delivered*
+
+**Delivered:** Prisma schema for Partner / Product / Category / UoM / TaxRate /
+TaxCategory / PriceList / Warehouse / Location (30 tables total, RLS regenerated
+across all 21 tenant-scoped tables). The five-regime tax engine with 32 golden
+cases. Server-side `RecordQuery` compilation with 14 tests. Product service
+(DAL) with permission layer 4 in the serializer. Products list as a true Server
+Component.
+
+**Still open in P1:** CSV import, saved-view persistence, chatter comments,
+partner and warehouse UI, product create/edit forms.
 
 **Scope:** Product, ProductVariant, Category, UnitOfMeasure + conversions, Partner (customer/supplier/contact in one model), PartnerAddress, PartnerTaxInfo, Warehouse, Location, PriceList, TaxRate, and the five country packs' **tax computation** (the display layer already exists from Stage 2).
 
@@ -82,6 +92,8 @@ Also lands here, because P1 is the first phase with enough real rows to justify 
 - chatter comments (per the Stage 1 open-question resolution)
 
 **Done when:** full CRUD on every entity through `DataTable` + `RecordShell`, CSV import working, and the tax engine's golden-case suite is green for **all five regimes** — India GST intra vs inter-state, UK VAT, EU VAT, UAE VAT, US sales tax with manually configured rates.
+
+*Tax gate status: **green**. 32 golden cases pass across all five regimes.*
 
 **Scope boundary restated:** US sales tax is manually configured jurisdiction rates. No automatic nexus sourcing. Flagged in architecture §4.2 and still awaiting explicit sign-off.
 
