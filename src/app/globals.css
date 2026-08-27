@@ -1,26 +1,221 @@
 @import "tailwindcss";
 
+/* Class-based dark mode (next-themes writes .dark on <html>) */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ============================================================
+   GLIDE DESIGN TOKENS
+   Editorial monochrome + one accent.
+   Hairlines and background shifts instead of shadows.
+   ============================================================ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* --- Surfaces --- */
+  --canvas: #fafaf8;          /* page background: warm paper, never pure white */
+  --surface: #ffffff;         /* cards, panels, table body */
+  --surface-sunken: #f4f3ef;  /* table headers, inset areas, disabled fills */
+  --surface-raised: #ffffff;  /* popovers, dialogs (paired with --shadow-raised) */
+
+  /* --- Ink --- */
+  --ink: #0a0a0a;             /* primary text; matches the logo black */
+  --ink-muted: #6b6b66;       /* labels, secondary text */
+  --ink-subtle: #9b9a93;      /* placeholders, disabled text, meta */
+  --ink-inverse: #fafaf8;     /* text on ink-filled surfaces */
+
+  /* --- Lines --- */
+  --hairline: #e6e4df;        /* default border: 1px, everywhere */
+  --hairline-strong: #d4d1ca; /* emphasised divider, input borders on hover */
+
+  /* --- Accent: Glide Violet ---
+     Reserved for links, focus, active nav, data highlights.
+     Deliberately not blue/green/amber/red so it never collides
+     with the semantic colours below. Swap here to rebrand. */
+  --accent: #4f3bd9;
+  --accent-hover: #4231bd;
+  --accent-soft: #eeebfc;
+  --accent-ink: #ffffff;
+
+  /* --- Semantic --- */
+  --success: #15803d;  --success-soft: #e8f5ec;
+  --warning: #b45309;  --warning-soft: #fdf2e3;
+  --danger:  #c2352b;  --danger-soft:  #fbebea;
+  --info:    #1d5fbf;  --info-soft:    #e9f0fb;
+
+  /* --- Misc --- */
+  --focus: #4f3bd9;
+  --overlay: rgb(10 10 10 / 0.32);
+  --shadow-raised: 0 1px 2px rgb(10 10 10 / 0.04), 0 8px 24px rgb(10 10 10 / 0.10);
 }
+
+.dark {
+  --canvas: #0b0b0c;
+  --surface: #141416;
+  --surface-sunken: #1b1b1e;
+  --surface-raised: #1b1b1e;
+
+  --ink: #f5f4f1;
+  --ink-muted: #a3a29c;
+  --ink-subtle: #6e6d68;
+  --ink-inverse: #0b0b0c;
+
+  --hairline: #26262a;
+  --hairline-strong: #35353a;
+
+  --accent: #8b7bff;
+  --accent-hover: #a093ff;
+  --accent-soft: #221d40;
+  --accent-ink: #0b0b0c;
+
+  --success: #4ade80;  --success-soft: #12261a;
+  --warning: #fbbf24;  --warning-soft: #2a1f0c;
+  --danger:  #f87171;  --danger-soft:  #2c1514;
+  --info:    #7db3ff;  --info-soft:    #101f33;
+
+  --focus: #8b7bff;
+  --overlay: rgb(0 0 0 / 0.6);
+  --shadow-raised: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.5);
+}
+
+/* ============================================================
+   DENSITY — a first-class feature. ERP power users live in compact.
+   Set data-density on <html>; every control reads these.
+   ============================================================ */
+
+:root, [data-density="comfortable"] {
+  --row-h: 40px;
+  --control-h: 36px;
+  --cell-pad-y: 0.5rem;
+}
+
+[data-density="compact"] {
+  --row-h: 32px;
+  --control-h: 30px;
+  --cell-pad-y: 0.25rem;
+}
+
+/* ============================================================
+   TAILWIND THEME MAPPING
+   ============================================================ */
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-surface-raised: var(--surface-raised);
+
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-subtle: var(--ink-subtle);
+  --color-ink-inverse: var(--ink-inverse);
+
+  --color-hairline: var(--hairline);
+  --color-hairline-strong: var(--hairline-strong);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-ink: var(--accent-ink);
+
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+
+  --color-focus: var(--focus);
+
+  /* Type families */
+  --font-display: var(--font-instrument-serif), Georgia, "Times New Roman", serif;
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", monospace;
+
+  /* Type scale — denser baseline than stock Tailwind.
+     text-base is 14px, not 16px: this is a data application. */
+  --text-2xs: 0.6875rem;  /* 11 — table meta, badges */
+  --text-xs:  0.75rem;    /* 12 — labels, captions */
+  --text-sm:  0.8125rem;  /* 13 — table cells, dense UI */
+  --text-base:0.875rem;   /* 14 — body default */
+  --text-lg:  1rem;       /* 16 — section headings */
+  --text-xl:  1.125rem;   /* 18 — card titles */
+  --text-2xl: 1.375rem;   /* 22 — sub page titles */
+  --text-3xl: 1.75rem;    /* 28 — page titles (display serif) */
+  --text-4xl: 2.25rem;    /* 36 — KPI figures (display serif) */
+
+  /* Restrained radii — editorial, not pill-shaped */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  /* Exactly one shadow, for floating layers only */
+  --shadow-raised: var(--shadow-raised);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* ============================================================
+   BASE
+   ============================================================ */
+
+@layer base {
+  * {
+    border-color: var(--hairline);
   }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--canvas);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Every numeric surface uses tabular figures so columns align.
+     Non-negotiable in a system full of money and quantities. */
+  table, input[type="number"], .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+
+  /* One focus treatment for the whole app */
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  ::selection {
+    background-color: var(--accent-soft);
+    color: var(--ink);
+  }
+
+  /* Scrollbars that match the paper, not the OS */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: var(--hairline-strong);
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover { background-color: var(--ink-subtle); background-clip: content-box; }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer utilities {
+  /* Display serif — page titles and KPI figures only. Never body copy. */
+  .font-display {
+    font-family: var(--font-display);
+    font-weight: 400;
+    letter-spacing: -0.01em;
+  }
+
+  /* The standard row height, driven by density */
+  .h-row { height: var(--row-h); }
+  .h-control { height: var(--control-h); }
 }
