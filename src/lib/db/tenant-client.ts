@@ -1,0 +1,85 @@
+import "server-only";
+
+import { Prisma } from "@/generated/prisma/client";
+import { prisma } from "./client";
+
+/**
+ * THE tenant isolation choke point.
+ *
+ * Every tenant-scoped read and write in the application goes through here.
+ * No service function ever writes `where: { tenantId }` by hand — and none
+ * needs to, because Postgres refuses to return another tenant's rows
+ * regardless of what the query says.
+ *
+ * How it works:
+ *   1. open an interactive transaction
+ *   2. SET LOCAL app.current_tenant_id = <uuid>
+ *   3. run the caller's work inside it
+ *
+ * SET LOCAL (not SET) is deliberate: it is transaction-scoped, so the value
+ * cannot leak to the next request that borrows the same pooled connection.
+ *
+ * See docs/architecture.md §1.3 and §3.3.
+ */
+export type TenantTransaction = Prisma.TransactionClient;
+
+export async function withTenant<T>(
+  tenantId: string,
+  work: (tx: TenantTransaction) => Promise<T>
+): Promise<T> {
+  assertUuid(tenantId);
+
+  return prisma.$transaction(async (tx) => {
+    // Parameterised — never string-interpolated. set_config() is used rather
+    // than literal `SET LOCAL` precisely because it accepts a bind parameter.
+    // The third argument `true` makes it transaction-local.
+    await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
+    return work(tx);
+  });
+}
+
+/**
+ * The BOOTSTRAP path: identity without a tenant yet.
+ *
+ * Resolving which tenant a user belongs to is a chicken-and-egg problem —
+ * you cannot read your membership without a tenant context, and you cannot
+ * know your tenant without reading your membership. Setting
+ * app.current_user_id lets the membership policy admit a user to their OWN
+ * membership rows (and the tenants those point at) and nothing else.
+ *
+ * Use this only to answer "which tenants am I in". Everything after that
+ * answer uses withTenant().
+ */
+export async function withUser<T>(
+  userId: string,
+  work: (tx: TenantTransaction) => Promise<T>
+): Promise<T> {
+  assertUuid(userId);
+
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT set_config('app.current_user_id', ${userId}, true)`;
+    return work(tx);
+  });
+}
+
+/**
+ * Escape hatch for platform operations that legitimately run without a
+ * tenant context: sign-up before a tenant exists, sign-in, reference data.
+ *
+ * Named loudly on purpose. If you are reaching for this inside a feature,
+ * you almost certainly want withTenant() instead.
+ */
+export async function withoutTenant<T>(work: (client: typeof prisma) => Promise<T>): Promise<T> {
+  return work(prisma);
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function assertUuid(value: string) {
+  if (!UUID_RE.test(value)) {
+    // Defence in depth: set_config is parameterised, but a malformed tenant id
+    // means something upstream is broken and should fail loudly, not quietly
+    // resolve to "no rows".
+    throw new Error("Invalid tenant id");
+  }
+}

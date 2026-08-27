@@ -1,12 +1,15 @@
+import Image from "next/image";
 import { cn } from "@/lib/utils";
+import wordmark from "../../../public/brand/glide-wordmark.png";
 
 /**
  * The four-point sparkle from the Glide wordmark, as a vector.
- * Used as the app icon, the favicon and the collapsed-sidebar mark.
+ * Used wherever the full wordmark will not fit: the collapsed sidebar rail,
+ * the app icon and the favicon.
  *
- * NOTE: public/Logo currently holds a 4.2 MB JPEG and a PNG, both raster
- * and both with spaces in the filename. Replacing them with a proper
- * exported SVG wordmark is a P0 task; this component is the interim mark.
+ * It is drawn rather than cropped from the PNG on purpose -- a four-point
+ * star has empty bounding-box corners, and in the source artwork the "e"
+ * sits inside the sparkle's box, so no rectangular crop can isolate it.
  */
 export function GlideMark({ className }: { className?: string }) {
   return (
@@ -16,11 +19,19 @@ export function GlideMark({ className }: { className?: string }) {
   );
 }
 
+/**
+ * The real logo, optimised from public/Logo (10596x4080, 370 KB) down to
+ * 720px wide and 15 KB. The artwork is pure black on a transparent ground,
+ * so a CSS invert gives a clean white wordmark in dark mode with no second
+ * asset to keep in sync.
+ */
 export function GlideWordmark({ className }: { className?: string }) {
   return (
-    <span className={cn("inline-flex items-baseline gap-1 text-ink", className)}>
-      <span className="font-display text-2xl leading-none tracking-tight">Glide</span>
-      <GlideMark className="size-2.5 translate-y-[-0.35rem]" />
-    </span>
+    <Image
+      src={wordmark}
+      alt="Glide"
+      priority
+      className={cn("h-6 w-auto select-none dark:invert", className)}
+    />
   );
 }

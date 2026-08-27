@@ -22,23 +22,40 @@ Five rules that decide every judgement call in this system.
 
 ## 2. Brand foundation
 
-The Glide logo is a **high-contrast editorial serif wordmark with a four-point sparkle**, in pure black. The entire visual system derives from it: black ink on warm paper, a serif for display, restrained everything else.
+The Glide logo is a **high-contrast editorial serif wordmark with a four-point sparkle**, in pure black. The entire visual system derives from it: black ink on warm paper, restrained everything else. The logo carries the serif; the interface does not compete with it.
 
-**Asset debt (P0 task).** `public/Logo/` currently holds a 4.2 MB JPEG and a 370 KB PNG, both raster, both with spaces in the filename. Neither is shippable. Needed: an exported SVG wordmark and an SVG sparkle, named `glide-wordmark.svg` and `glide-mark.svg`. Until then `src/components/layout/glide-mark.tsx` renders the sparkle as an inline vector and sets the wordmark in Instrument Serif — visually very close, and it makes the app work today.
+**Assets (resolved).** The source PNG in `public/Logo/` is 10596x4080 and 370 KB with a space in its filename — not shippable. It is a pure-black wordmark on a genuinely transparent ground (verified: alpha 0 at the corners), which is what makes the dark-mode treatment simple.
 
-The sparkle alone is the app icon, favicon and collapsed-sidebar mark.
+Generated with `sharp` into `public/brand/`:
+
+| Asset | Size | Use |
+|---|---|---|
+| `glide-wordmark.png` | 720x241, **15 KB** | Expanded sidebar, auth screens |
+| `src/app/icon.png` | 512x512, 10 KB | Favicon / app icon |
+| `src/app/apple-icon.png` | 180x180, 3 KB | iOS home screen |
+
+**Dark mode** applies `dark:invert` to the wordmark. Because the art is pure black with transparency, inversion produces a clean white wordmark and leaves the background untouched — one asset, both themes, nothing to keep in sync.
+
+**The sparkle is drawn as a vector**, not cropped from the PNG. A four-point star has empty bounding-box corners, and in the source artwork the "e" sits inside the sparkle's box, so no rectangular crop can isolate it. The vector is used for the collapsed sidebar rail and the app icon (white sparkle on an ink rounded square, which reads at 16px on any tab colour).
+
+The 4.2 MB JPEG is unused and should be deleted from the repo.
 
 ---
 
 ## 3. Typography
 
-One new font. Geist was already wired into the project and is a genuinely good grotesque, so it stays.
+Two faces, no serif. The first pass paired a display serif with Geist; the serif read thin and mismatched against dense data, so it is gone.
 
 | Role | Face | Used for |
 |---|---|---|
-| **Display** | Instrument Serif 400 | Page titles, KPI figures, empty-state headings. **Never body copy, never labels.** |
-| **UI / data** | Geist Sans | Everything else |
-| **Mono** | Geist Mono | Document numbers, SKUs, tax IDs, codes |
+| **UI / data / display** | **Inter** | Everything |
+| **Mono** | **JetBrains Mono** | Document numbers, SKUs, tax IDs, codes |
+
+**Why Inter:** it is the best-engineered face available for 13–14px dense data, and it ships a proper tabular-figure set — which matters more than personality in a system that is mostly money columns.
+
+**Why JetBrains Mono:** slashed zero and unambiguous `1`/`l`/`I`. When someone reads an invoice number aloud over the phone, that is worth more than character.
+
+**Display sizes are the same family, set heavier and tighter** — weight 600 at `-0.028em` tracking, via the `.font-display` utility. Using one family at two treatments reads as deliberate typesetting; a second family competes with the logo, which is itself a display serif. Body text carries a slight `-0.006em` to keep dense tables crisp.
 
 ### Scale
 
@@ -145,14 +162,14 @@ This is where the leverage is. Every module reuses these; **no module writes its
 |---|---|
 | `DataTable` | The one table. Sortable headers, column picker, sticky header, density-aware rows, row selection, **"select all N matching this filter"** distinct from page-select, bulk action bar, pagination, empty state. A pure renderer — see §8. |
 | `FilterBar` | Field-scoped search, quick-filter chips, removable active filters, **Group by** any field, **Saved views** (shared or private). The Stage 1 "enterprise vs admin panel" dividing line. |
-| `PageHeader` | Breadcrumbs, display-serif title, status slot, meta line, action slot. Opens every screen. |
+| `PageHeader` | Breadcrumbs, display-weight title, status slot, meta line, action slot. Opens every screen. |
 | `RecordShell` | The record-page frame: header, smart buttons, tabbed body, right metadata rail. |
 | `StatusStepper` | Document lifecycle rendered from a server-defined state machine. Handles the cancelled terminal state separately. |
 | `SmartButtons` | Related-document navigation with live counts — walk the document graph from any record. |
 | `LineItemsTable` | Order/invoice lines with per-line tax and a totals footer carrying the tax breakdown. |
 | `Money`, `Quantity`, `DateText`, `Code` | Locale-aware, tabular, right-aligned. Negatives render in `danger`. |
 | `FieldGrid` / `Field` / `FormSection` | The standard label/value layout for every record view |
-| `KpiTile` | Display-serif figure with delta |
+| `KpiTile` | Display-weight figure with delta |
 | `AuditTrail` | Chatter v1 — the field-change log |
 | `EmptyState` | |
 
@@ -231,11 +248,10 @@ Reference implementations: `src/app/app/sales/page.tsx` and `src/app/app/sales/[
 Honest list of what this stage did not finish.
 
 1. **The sales list is a client component.** It reads `useSearchParams`, so its SSR output is the Suspense fallback. Correct for mock data; in P1 it becomes a Server Component that runs the query server-side and passes a `RecordPage` down. The query layer was designed for exactly this.
-2. **Logo assets are still raster.** See §2.
-3. **Group-by renders no grouped rows yet.** The control and the query field exist; the grouped renderer arrives with real data in P1.
-4. **Saved views are not persisted.** UI and types are real; the table lands in P0's schema.
-5. **No automated tests yet.** Vitest and Playwright come in with P0, alongside the database — testing mock data would be testing nothing.
-6. **Accessibility pass not yet done.** Radix gives correct roles and focus management for free, and focus-visible is handled globally, but contrast has not been formally audited and there is no skip-link.
+2. **Group-by renders no grouped rows yet.** The control and the query field exist; the grouped renderer arrives with real data in P1.
+3. **Saved views are not persisted.** UI and types are real; the table lands in P0's schema.
+4. **No automated tests yet.** Vitest and Playwright come in with P0, alongside the database — testing mock data would be testing nothing.
+5. **Accessibility pass not yet done.** Radix gives correct roles and focus management for free, and focus-visible is handled globally, but contrast has not been formally audited and there is no skip-link.
 
 ---
 

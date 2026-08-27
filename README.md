@@ -1,36 +1,58 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Glide
 
-## Getting Started
+Multi-tenant ERP — inventory, sales and invoicing for growing businesses.
+Next 16 · React 19 · Tailwind v4 · Prisma 7 · Neon Postgres.
 
-First, run the development server:
+## Quick start
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env      # then fill in DATABASE_URL and AUTH_SECRET
+npm run db:setup          # migrate + seed reference data
+npm run dev               # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Without a `DATABASE_URL` the app still runs, in **preview mode**: the shell and
+every screen render against demo data so the design system stays inspectable.
+A banner says so. Sign-in activates the moment a real database is connected.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Script | What it does |
+|---|---|
+| `npm run dev` | Dev server |
+| `npm run build` | Production build |
+| `npm test` | Vitest — permissions + RLS isolation |
+| `npm run db:migrate` | Apply migrations (`prisma migrate deploy`) |
+| `npm run db:seed` | Seed countries and currencies |
+| `npm run db:setup` | Migrate then seed |
+| `npm run db:studio` | Prisma Studio |
+| `npm run db:rls` | Regenerate the RLS policy migration from the schema |
 
-## Learn More
+## Architecture in one screen
 
-To learn more about Next.js, take a look at the following resources:
+- **Tenant isolation** is enforced by Postgres Row-Level Security, not by
+  application code. `withTenant()` in `src/lib/db/tenant-client.ts` is the only
+  place tenant scope is set; a forgotten `WHERE` clause cannot leak data.
+- **`FORCE ROW LEVEL SECURITY` is mandatory** — Neon connects as the table
+  owner, and an owner bypasses `ENABLE`-only RLS.
+- **The WebSocket Neon driver is mandatory** — `neon-http` cannot run
+  interactive transactions, so `SET LOCAL` would never reach the query.
+- **Permissions have four layers**: roles → entity ACL → record scope → field
+  visibility. Server-side `assertPermission()` is the boundary; the client
+  `<PermissionGate>` is UX only.
+- **The query layer is separate from the table renderer**, so kanban and pivot
+  views cost days rather than months later.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+After adding tenant-scoped models: `npm run db:rls` to regenerate policies.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Docs
 
-## Deploy on Vercel
+`docs/` is the source of truth and persists across sessions.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Doc | Contents |
+|---|---|
+| [design-research.md](docs/design-research.md) | Odoo / Zoho / NetSuite / Dynamics teardown |
+| [design-system.md](docs/design-system.md) | Tokens, type, components, screen archetypes |
+| [architecture.md](docs/architecture.md) | Multi-tenancy, auth, data model, tax engine |
+| [roadmap.md](docs/roadmap.md) | Phased build order and per-phase done criteria |

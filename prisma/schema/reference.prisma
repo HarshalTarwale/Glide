@@ -1,0 +1,44 @@
+// ============================================================
+// REFERENCE DATA — shared across all tenants.
+// Deliberately NOT tenant-scoped and carries NO RLS policy:
+// every tenant reads the same rows. See architecture 1.3.
+// ============================================================
+
+model Country {
+  code        String  @id @db.Char(2)
+  name        String
+  /// BCP 47 locale. en-IN is what produces lakh/crore grouping.
+  locale      String
+  currency    String  @db.Char(3)
+  taxRegime   String
+  taxLabel    String
+  taxIdLabel  String
+  regionLabel String
+  pricesIncludeTax Boolean @default(false)
+  timeZone    String
+
+  @@map("country")
+}
+
+model Currency {
+  code     String @id @db.Char(3)
+  name     String
+  symbol   String
+  /// JPY=0, most=2, JOD=3. This is exactly why money is NUMERIC
+  /// and not minor-unit integers. See architecture 3.2.
+  decimals Int    @default(2)
+
+  @@map("currency")
+}
+
+model ExchangeRate {
+  id       String   @id @default(uuid()) @db.Uuid
+  from     String   @db.Char(3)
+  to       String   @db.Char(3)
+  rate     Decimal  @db.Decimal(19, 8)
+  asOf     DateTime @db.Date
+
+  @@unique([from, to, asOf])
+  @@index([asOf])
+  @@map("exchange_rate")
+}

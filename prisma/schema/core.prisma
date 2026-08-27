@@ -1,0 +1,337 @@
+// ============================================================
+// CORE — tenancy, identity, permissions, audit.
+//
+// Conventions applied to EVERY tenant-scoped model:
+//   tenantId, createdAt, updatedAt, createdBy, updatedBy,
+//   deletedAt (where soft delete makes sense),
+//   customFields Json (the seam ships now, the editor much later)
+//
+// Reference data (Country, Currency, TaxRegime...) is deliberately
+// NOT tenant-scoped: it is shared, and carries no RLS policy.
+// ============================================================
+
+/// A customer of Glide. The top of the isolation boundary.
+model Tenant {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  slug      String   @unique
+  /// ISO 3166-1 alpha-2. Drives currency, number format and tax regime.
+  country   String   @default("IN")
+  /// Base currency for cross-company reporting.
+  currency  String   @default("INR")
+  timeZone  String   @default("Asia/Kolkata")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  companies    Company[]
+  memberships  Membership[]
+  roles        Role[]
+  invitations  Invitation[]
+  auditLogs    AuditLog[]
+  sequences    NumberSequence[]
+  attachments  Attachment[]
+  savedViews   SavedView[]
+  apiKeys      ApiKey[]
+
+  @@map("tenant")
+}
+
+/// A legal entity inside a tenant. A tenant may run several
+/// (confirmed by both Odoo and NetSuite in Stage 1 research).
+/// Documents belong to a Company, not directly to a Tenant.
+model Company {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @db.Uuid
+  name         String
+  legalName    String?
+  /// Overrides the tenant country when a subsidiary files elsewhere.
+  country      String
+  currency     String
+  /// GSTIN / VAT number / TRN / EIN — label is country-driven.
+  taxId        String?
+  addressLine1 String?
+  addressLine2 String?
+  city         String?
+  /// State / county / emirate — used for place-of-supply rules.
+  region       String?
+  postalCode   String?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  createdBy    String?  @db.Uuid
+  updatedBy    String?  @db.Uuid
+  deletedAt    DateTime?
+  customFields Json     @default("{}")
+
+  tenant    Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sequences NumberSequence[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("company")
+}
+
+// ------------------------------------------------------------
+// Identity
+// ------------------------------------------------------------
+
+/// A person. Global, not tenant-scoped — one human, one account,
+/// potentially a member of several tenants.
+model User {
+  id            String    @id @default(uuid()) @db.Uuid
+  email         String    @unique
+  name          String?
+  passwordHash  String?
+  emailVerified DateTime?
+  image         String?
+  /// Persisted UI preference, per architecture §P0.
+  density       String    @default("comfortable")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships Membership[]
+  accounts    Account[]
+  sessions    Session[]
+  savedViews  SavedView[]
+
+  @@map("user")
+}
+
+/// Auth.js OAuth account linkage.
+model Account {
+  id                String  @id @default(uuid()) @db.Uuid
+  userId            String  @db.Uuid
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("account")
+}
+
+model Session {
+  id           String   @id @default(uuid()) @db.Uuid
+  sessionToken String   @unique
+  userId       String   @db.Uuid
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("session")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_token")
+}
+
+// ------------------------------------------------------------
+// Permissions — four layers, per architecture §2.3
+// ------------------------------------------------------------
+
+/// Layer 1: which tenant a user belongs to, and with which roles.
+/// A user may hold SEVERAL roles; permissions are UNIONED, never
+/// intersected (matching Odoo, confirmed in Stage 1 research).
+model Membership {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  userId   String @db.Uuid
+  /// Tenant owner: cannot be removed, bypasses record scope.
+  isOwner  Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roles  MembershipRole[]
+
+  @@unique([tenantId, userId])
+  @@index([tenantId])
+  @@map("membership")
+}
+
+model Role {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  name     String
+  description String?
+  /// Layer 2: `module:resource:action` strings, e.g. "sales:order:create".
+  permissions String[]
+  /// Layer 3: named record-scope predicate applied alongside the RLS
+  /// tenant predicate. null = no additional restriction.
+  /// e.g. "own_records" | "own_warehouse"
+  recordScope String?
+  /// Built-in roles cannot be deleted.
+  isSystem    Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant  Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  members MembershipRole[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("role")
+}
+
+model MembershipRole {
+  membershipId String @db.Uuid
+  roleId       String @db.Uuid
+
+  membership Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([membershipId, roleId])
+  @@map("membership_role")
+}
+
+model Invitation {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  email     String
+  roleIds   String[]
+  token     String   @unique
+  expiresAt DateTime
+  acceptedAt DateTime?
+
+  createdAt DateTime @default(now())
+  createdBy String?  @db.Uuid
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+  @@map("invitation")
+}
+
+/// External API access. Every REST POST also requires an idempotency key.
+model ApiKey {
+  id         String    @id @default(uuid()) @db.Uuid
+  tenantId   String    @db.Uuid
+  name       String
+  /// Only the hash is stored; the key is shown once at creation.
+  keyHash    String    @unique
+  prefix     String
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  createdBy String?  @db.Uuid
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("api_key")
+}
+
+// ------------------------------------------------------------
+// Platform services
+// ------------------------------------------------------------
+
+/// Chatter v1: the field-change audit log. Append-only, never updated.
+/// Comments arrive in P1, scheduled activities with CRM.
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @db.Uuid
+  /// Model name, e.g. "SalesOrder"
+  entityType String
+  entityId   String
+  /// "created" | "updated" | "confirmed" | "cancelled" | ...
+  action     String
+  actorId    String?  @db.Uuid
+  actorName  String
+  /// { field: { from, to } }
+  changes    Json     @default("{}")
+  at         DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, entityType, entityId])
+  @@index([tenantId, at])
+  @@map("audit_log")
+}
+
+/// Document numbering, per company / doc type / fiscal year.
+/// Gapless within a series — required for tax compliance in India and the EU.
+model NumberSequence {
+  id         String @id @default(uuid()) @db.Uuid
+  tenantId   String @db.Uuid
+  companyId  String @db.Uuid
+  /// "sales_order" | "invoice" | "credit_note" | "delivery" ...
+  docType    String
+  fiscalYear Int
+  prefix     String @default("")
+  padding    Int    @default(4)
+  next       Int    @default(1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, docType, fiscalYear])
+  @@index([tenantId])
+  @@map("number_sequence")
+}
+
+model Attachment {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @db.Uuid
+  entityType String
+  entityId   String
+  fileName   String
+  mimeType   String
+  sizeBytes  Int
+  storageKey String
+
+  createdAt DateTime @default(now())
+  createdBy String?  @db.Uuid
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, entityType, entityId])
+  @@map("attachment")
+}
+
+/// A named RecordQuery. The persisted half of the Stage 2 query layer.
+model SavedView {
+  id        String  @id @default(uuid()) @db.Uuid
+  tenantId  String  @db.Uuid
+  /// Which list this view belongs to, e.g. "sales.order"
+  resource  String
+  name      String
+  /// Serialised RecordQuery (see src/lib/query/record-query.ts)
+  query     Json
+  /// Shared with the whole tenant, or private to its creator.
+  shared    Boolean @default(false)
+  isDefault Boolean @default(false)
+  ownerId   String? @db.Uuid
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  owner  User?  @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, resource])
+  @@map("saved_view")
+}

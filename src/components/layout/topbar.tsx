@@ -1,12 +1,13 @@
 "use client";
 
-import * as React from "react";
+import Link from "next/link";
 import { Bell, Check, ChevronDown, Monitor, Moon, Rows3, Search, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import { Kbd } from "@/components/ui/kbd";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { COUNTRY_LIST, getCountry } from "@/lib/i18n/countries";
+import { signOutAction } from "@/lib/auth/actions";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,6 +19,8 @@ import {
 
 export function Topbar({
   company,
+  userName,
+  userEmail,
   country,
   onCountryChange,
   density,
@@ -25,16 +28,15 @@ export function Topbar({
   onOpenPalette,
 }: {
   company: string;
+  userName: string;
+  userEmail: string;
   country: string;
   onCountryChange: (code: string) => void;
   density: "comfortable" | "compact";
   onDensityChange: (d: "comfortable" | "compact") => void;
   onOpenPalette: () => void;
 }) {
-  const { theme, setTheme } = useTheme();
-  const [mounted, setMounted] = React.useState(false);
-  React.useEffect(() => setMounted(true), []);
-
+  const { setTheme } = useTheme();
   const pack = getCountry(country);
 
   return (
@@ -110,7 +112,8 @@ export function Topbar({
             className="flex size-8 items-center justify-center rounded-md text-ink-subtle transition-colors hover:bg-surface-sunken hover:text-ink"
             aria-label="Theme"
           >
-            {mounted && theme === "dark" ? <Moon className="size-4" /> : <Sun className="size-4" />}
+            <Sun className="size-4 dark:hidden" />
+            <Moon className="hidden size-4 dark:block" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={() => setTheme("light")}>
@@ -136,20 +139,32 @@ export function Topbar({
         <DropdownMenu>
           <DropdownMenuTrigger className="ml-1 rounded-full focus-visible:outline-none">
             <Avatar>
-              <AvatarFallback>AH</AvatarFallback>
+              <AvatarFallback>{initials(userName)}</AvatarFallback>
             </Avatar>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-52">
-            <DropdownMenuLabel>Signed in</DropdownMenuLabel>
-            <div className="px-2 pb-2 text-xs text-ink-muted">adityahazari14@gmail.com</div>
+            <DropdownMenuLabel>{userName}</DropdownMenuLabel>
+            <div className="truncate px-2 pb-2 text-xs text-ink-muted">{userEmail}</div>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>Profile</DropdownMenuItem>
-            <DropdownMenuItem>Organisation settings</DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/app/settings">Organisation settings</Link>
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem destructive>Sign out</DropdownMenuItem>
+            <DropdownMenuItem destructive onClick={() => void signOutAction()}>
+              Sign out
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
     </header>
   );
+}
+
+function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("") || "?";
 }

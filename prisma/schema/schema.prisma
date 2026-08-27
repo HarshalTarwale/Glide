@@ -1,0 +1,14 @@
+// Glide — generator and datasource.
+// Model definitions live one file per module alongside this one.
+//
+// Prisma 7: the connection URL lives in prisma.config.ts, not here, and the
+// client requires a driver adapter (the Rust query engine is gone).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}

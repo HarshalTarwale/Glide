@@ -128,9 +128,9 @@
   --color-focus: var(--focus);
 
   /* Type families */
-  --font-display: var(--font-instrument-serif), Georgia, "Times New Roman", serif;
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", monospace;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, "SF Mono", monospace;
 
   /* Type scale — denser baseline than stock Tailwind.
      text-base is 14px, not 16px: this is a data application. */
@@ -172,6 +172,7 @@
     font-family: var(--font-sans);
     font-size: var(--text-base);
     line-height: 1.5;
+    letter-spacing: -0.006em;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
@@ -208,11 +209,13 @@
 }
 
 @layer utilities {
-  /* Display serif — page titles and KPI figures only. Never body copy. */
+  /* Display treatment: page titles, KPI figures, empty-state headings.
+     Same family as the UI, set heavier and tighter -- deliberate typesetting
+     rather than a second personality competing with the logo. */
   .font-display {
     font-family: var(--font-display);
-    font-weight: 400;
-    letter-spacing: -0.01em;
+    font-weight: 600;
+    letter-spacing: -0.028em;
   }
 
   /* The standard row height, driven by density */
