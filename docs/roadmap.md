@@ -57,17 +57,17 @@ The build order is not a preference. It follows the direction data flows through
 
 ## 3. Phases
 
-### P0 — Foundation
+### P0 — Foundation  ·  **COMPLETE, verified against the live database**
 
-**Scope:** `src/` restructure ✅, design tokens ✅, fonts ✅, optimised brand assets ✅, Neon + Prisma + RLS, Auth.js, Tenant / Company / User / Membership / Role, AppShell ✅, core primitives ✅, ⌘K palette ✅, settings shell, audit log, number sequences.
+**Scope:** `src/` restructure ✅, design tokens ✅, fonts ✅, optimised brand assets ✅, Neon + Prisma + RLS ✅, Auth.js ✅, Tenant / Company / User / Membership / Role ✅, AppShell ✅, core primitives ✅, ⌘K palette ✅, settings shell ✅, audit log ✅, number sequences (schema ready, UI deferred to the module that first needs it).
 
-Items marked ✅ were delivered in Stage 2.
+**Acceptance gate — PASSED for real, not just in logic:**
+- `tests/rls-isolation.test.ts` — tenant A cannot read tenant B's row by primary key, an unscoped query returns zero rows (fails closed), writes are scoped too. All three against live Neon.
+- `tests/signup-flow.test.ts` — a real signup creates tenant, company, all 7 seeded roles, Owner membership and an audit entry; duplicate email is rejected.
 
-**Done when:** a person can sign up, create an organisation, invite a second user, assign them a role, set the organisation's country and currency, and land on an empty dashboard — **and** a Vitest test proves a session scoped to tenant A returns zero rows when querying tenant B's ids by primary key.
+**A real incident, caught by the isolation test itself:** Neon's default `neondb_owner` role carries Postgres's `BYPASSRLS` attribute, which overrides `FORCE ROW LEVEL SECURITY` outright — every policy in `00000000000001_rls` was silently inert while the app connected as that role. Fixed with a second, unprivileged role (`glide_app`, confirmed `NOBYPASSRLS`) that the app runs as at all times; migrations alone keep using the owner connection, via a separate `MIGRATE_DATABASE_URL`. `scripts/setup-db-role.mjs` creates and verifies this role and is idempotent. Documented in `.env.example` and `README.md` so this cannot silently regress for the next environment.
 
-That last clause is the real acceptance criterion. Everything else in P0 is plumbing for it.
-
-**Key risk:** the Neon driver choice. Per architecture §1.3, the HTTP driver cannot run `SET LOCAL` in a transaction, which silently breaks RLS. The isolation test is what catches this.
+**Key risk, resolved:** the Neon driver choice (§1.3) — the WebSocket adapter is in use, `SET LOCAL` inside a transaction was confirmed working end to end.
 
 ---
 

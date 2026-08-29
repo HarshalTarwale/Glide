@@ -24,7 +24,13 @@ export default defineConfig({
   migrations: {
     path: "prisma/migrations",
   },
+  // MIGRATE_DATABASE_URL, not DATABASE_URL: migrations run DDL (CREATE POLICY,
+  // ALTER TABLE ... FORCE ROW LEVEL SECURITY), which needs table-owner
+  // privileges the restricted app role deliberately does not have.
+  // DATABASE_URL is the app's own runtime connection -- see
+  // src/lib/db/client.ts and scripts/setup-db-role.mjs for why the two must
+  // never be the same role.
   datasource: {
-    url: env("DATABASE_URL"),
+    url: env("MIGRATE_DATABASE_URL"),
   },
 });

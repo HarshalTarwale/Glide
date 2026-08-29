@@ -49,6 +49,12 @@ COMMIT;
 
 **Rows that predate tenant context** — platform tables like `Country`, `Currency`, `TaxRegime` — are not tenant-scoped at all; they carry no `tenant_id` and no RLS policy, since they're shared reference data.
 
+**Verified in production (2026-08-29), and a real gotcha found along the way:** Neon's default role (`neondb_owner` on this project) has Postgres's `BYPASSRLS` attribute. Per Postgres semantics, `BYPASSRLS` overrides `FORCE ROW LEVEL SECURITY` — it is a stronger bypass than table ownership, and FORCE does nothing against it. Connecting the app as the Neon default role would have made every policy in this section inert while looking, from the migration output, completely correct.
+
+The fix, applied via `scripts/setup-db-role.mjs`: a second Postgres role (`glide_app`) with `LOGIN` but explicitly `NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS`. **The application always connects as this role.** Schema migrations alone keep using the original owner connection (`MIGRATE_DATABASE_URL`), since DDL — including `CREATE POLICY` and `ALTER TABLE ... FORCE ROW LEVEL SECURITY` themselves — needs table-owner privileges this restricted role deliberately does not have.
+
+This split is why `prisma.config.ts`'s datasource and `src/lib/db/client.ts`'s runtime connection are configured from two different environment variables rather than one. The isolation test (`tests/rls-isolation.test.ts`) is what caught this — it failed against the owner connection and passed once `DATABASE_URL` pointed at `glide_app`, which is exactly the failure mode the test exists to catch.
+
 ---
 
 ## 2. Authentication & the permission model

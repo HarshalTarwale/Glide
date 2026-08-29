@@ -9,8 +9,8 @@
 import { PrismaNeon } from "@prisma/adapter-neon";
 import { neonConfig } from "@neondatabase/serverless";
 import ws from "ws";
-import { PrismaClient } from "../src/generated/prisma/client.js";
-import { COUNTRY_LIST } from "../src/lib/i18n/countries.js";
+import { PrismaClient } from "../src/generated/prisma/client";
+import { COUNTRY_LIST } from "../src/lib/i18n/countries";
 
 neonConfig.webSocketConstructor = ws;
 

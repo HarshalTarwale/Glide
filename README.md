@@ -7,10 +7,19 @@ Next 16 · React 19 · Tailwind v4 · Prisma 7 · Neon Postgres.
 
 ```bash
 npm install
-cp .env.example .env      # then fill in DATABASE_URL and AUTH_SECRET
-npm run db:setup          # migrate + seed reference data
-npm run dev               # http://localhost:3000
+cp .env.example .env
+# Fill in MIGRATE_DATABASE_URL with your Neon owner connection string,
+# and generate AUTH_SECRET (npx auth secret).
+node scripts/setup-db-role.mjs    # creates the restricted app role; writes DATABASE_URL for you
+npm run db:setup                  # migrate + seed reference data
+npm run dev                       # http://localhost:3000
 ```
+
+**Do not point `DATABASE_URL` at the Neon owner connection.** Neon's default
+role has `BYPASSRLS`, which silently disables every tenant-isolation policy —
+see "Architecture in one screen" below. `setup-db-role.mjs` creates the
+correct restricted role and writes both env vars for you; running it is not
+optional.
 
 Without a `DATABASE_URL` the app still runs, in **preview mode**: the shell and
 every screen render against demo data so the design system stays inspectable.
@@ -23,7 +32,8 @@ A banner says so. Sign-in activates the moment a real database is connected.
 | `npm run dev` | Dev server |
 | `npm run build` | Production build |
 | `npm test` | Vitest — permissions + RLS isolation |
-| `npm run db:migrate` | Apply migrations (`prisma migrate deploy`) |
+| `node scripts/setup-db-role.mjs` | Create/verify the restricted app role (run once per database) |
+| `npm run db:migrate` | Apply migrations (`prisma migrate deploy`), as the Neon owner |
 | `npm run db:seed` | Seed countries and currencies |
 | `npm run db:setup` | Migrate then seed |
 | `npm run db:studio` | Prisma Studio |
@@ -34,8 +44,12 @@ A banner says so. Sign-in activates the moment a real database is connected.
 - **Tenant isolation** is enforced by Postgres Row-Level Security, not by
   application code. `withTenant()` in `src/lib/db/tenant-client.ts` is the only
   place tenant scope is set; a forgotten `WHERE` clause cannot leak data.
-- **`FORCE ROW LEVEL SECURITY` is mandatory** — Neon connects as the table
-  owner, and an owner bypasses `ENABLE`-only RLS.
+- **`FORCE ROW LEVEL SECURITY` is mandatory** — a table owner bypasses `ENABLE`-only RLS.
+- **The app must NOT connect as Neon's default role.** That role has `BYPASSRLS`,
+  which overrides even `FORCE`. The app runs as a separate, restricted role
+  (`glide_app`) created by `scripts/setup-db-role.mjs`; migrations alone use
+  the owner connection. This was a real, verified incident — see
+  `docs/architecture.md` §1.3.
 - **The WebSocket Neon driver is mandatory** — `neon-http` cannot run
   interactive transactions, so `SET LOCAL` would never reach the query.
 - **Permissions have four layers**: roles → entity ACL → record scope → field
