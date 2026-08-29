@@ -18,25 +18,31 @@ for (const file of [".env.local", ".env"]) {
 }
 
 /**
- * MIGRATE_DATABASE_URL, falling back to DATABASE_URL.
+ * MIGRATE_DATABASE_URL, falling back to DATABASE_URL, falling back to an
+ * obviously-fake placeholder.
  *
  * `prisma generate` runs on every `npm install` (see the postinstall script)
- * and does not need a working connection at all — it only reads the schema.
- * But prisma/config's env() helper throws the moment the named variable is
- * unresolved, which would make a Vercel Preview build (which reasonably
- * only sets DATABASE_URL, not the owner credential) fail just to generate a
- * client. Falling back keeps generate/build working everywhere `DATABASE_URL`
- * is set, while `prisma migrate` — which actually needs owner privileges for
- * DDL — still uses MIGRATE_DATABASE_URL whenever it's provided.
+ * and NEVER connects to a database — it only reads the schema to emit the
+ * client. Throwing here when no URL is set would make `npm install` fail in
+ * any environment that has not yet been given database credentials (a fresh
+ * clone, CI running unit tests, a Vercel Preview build), for a step that does
+ * not need them. That is a build failure with a misleading cause.
+ *
+ * So: never throw. Commands that genuinely need a connection —
+ * `prisma migrate`, `prisma db push`, `prisma studio` — will fail on their
+ * own with a clear connection error naming the `.invalid` host below, which
+ * points straight at the missing environment variable. `.invalid` is a
+ * reserved TLD (RFC 2606) guaranteed never to resolve, so this can never
+ * accidentally reach a real database.
+ *
+ * MIGRATE_DATABASE_URL is preferred over DATABASE_URL because migrations run
+ * DDL that needs table-owner privileges the app's restricted runtime role
+ * deliberately does not have. See scripts/setup-db-role.mjs.
  */
+const PLACEHOLDER_URL = "postgresql://unset:unset@unset.invalid:5432/unset";
+
 function datasourceUrl(): string {
-  const url = process.env.MIGRATE_DATABASE_URL ?? process.env.DATABASE_URL;
-  if (!url) {
-    throw new Error(
-      "Set MIGRATE_DATABASE_URL (preferred) or DATABASE_URL before running any Prisma CLI command."
-    );
-  }
-  return url;
+  return process.env.MIGRATE_DATABASE_URL ?? process.env.DATABASE_URL ?? PLACEHOLDER_URL;
 }
 
 export default defineConfig({
