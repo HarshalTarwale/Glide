@@ -14,6 +14,13 @@ import {
   transferStockSchema,
   adjustStockSchema,
 } from "@/server/inventory/stock";
+import { updateLotExpiry } from "@/server/inventory/lots";
+import {
+  createReorderRule,
+  updateReorderRule,
+  deleteReorderRule,
+  reorderRuleInputSchema,
+} from "@/server/inventory/reorder-rules";
 
 export interface ActionResult {
   ok: boolean;
@@ -142,6 +149,78 @@ export async function adjustStockAction(_prev: ActionResult, formData: FormData)
   try {
     const ctx = await requireContext();
     await adjustStock(ctx, parsed.data);
+  } catch (error) {
+    return { ok: false, error: describeError(error) };
+  }
+  revalidatePath("/app/inventory/stock");
+  return { ok: true };
+}
+
+/* ------------------------------------------------------------------ */
+/* Lots                                                                 */
+/* ------------------------------------------------------------------ */
+
+export async function updateLotExpiryAction(lotId: string, expiresAt: string | null): Promise<ActionResult> {
+  try {
+    const ctx = await requireContext();
+    await updateLotExpiry(ctx, lotId, { expiresAt: expiresAt ? new Date(expiresAt) : null });
+  } catch (error) {
+    return { ok: false, error: describeError(error) };
+  }
+  revalidatePath("/app/inventory/stock");
+  return { ok: true };
+}
+
+/* ------------------------------------------------------------------ */
+/* Reorder rules                                                       */
+/* ------------------------------------------------------------------ */
+
+function parseReorderRuleForm(formData: FormData) {
+  const raw = Object.fromEntries(formData.entries());
+  return reorderRuleInputSchema.safeParse({
+    productId: raw.productId,
+    warehouseId: raw.warehouseId,
+    minQty: numeric.parse(raw.minQty || 0),
+    maxQty: raw.maxQty ? numeric.parse(raw.maxQty) : null,
+  });
+}
+
+export async function createReorderRuleAction(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  const parsed = parseReorderRuleForm(formData);
+  if (!parsed.success) return { ok: false, fieldErrors: fieldErrorsOf(parsed.error) };
+
+  try {
+    const ctx = await requireContext();
+    await createReorderRule(ctx, parsed.data);
+  } catch (error) {
+    return { ok: false, error: describeError(error) };
+  }
+  revalidatePath("/app/inventory/stock");
+  return { ok: true };
+}
+
+export async function updateReorderRuleAction(
+  id: string,
+  _prev: ActionResult,
+  formData: FormData
+): Promise<ActionResult> {
+  const parsed = parseReorderRuleForm(formData);
+  if (!parsed.success) return { ok: false, fieldErrors: fieldErrorsOf(parsed.error) };
+
+  try {
+    const ctx = await requireContext();
+    await updateReorderRule(ctx, id, parsed.data);
+  } catch (error) {
+    return { ok: false, error: describeError(error) };
+  }
+  revalidatePath("/app/inventory/stock");
+  return { ok: true };
+}
+
+export async function deleteReorderRuleAction(id: string): Promise<ActionResult> {
+  try {
+    const ctx = await requireContext();
+    await deleteReorderRule(ctx, id);
   } catch (error) {
     return { ok: false, error: describeError(error) };
   }
