@@ -10,11 +10,15 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/**/*.test.ts"],
-    // Real network round-trips to Neon over WebSocket in rls-isolation.test.ts
-    // -- several transactions per test, each a fresh connection. The default
+    // Real network round-trips to Neon over WebSocket -- several transactions
+    // per test, each its own connection. tests/stock-ledger.test.ts is the
+    // heaviest (multiple receive/deliver/adjust calls per test, each a
+    // separate withTenant transaction), and observed latency varies enough
+    // between runs that a tighter timeout flakes on different tests each
+    // time rather than reliably catching a genuinely hung test. The default
     // 5s is tuned for pure-logic tests like the tax engine.
-    testTimeout: 20000,
-    hookTimeout: 20000,
+    testTimeout: 45000,
+    hookTimeout: 45000,
   },
   resolve: {
     alias: {

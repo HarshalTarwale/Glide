@@ -1,0 +1,192 @@
+// ============================================================
+// INVENTORY — the stock move ledger and everything derived from it.
+//
+// THE TWO RULES (docs/architecture.md §5.6, restated because they are the
+// decisions most likely to be quietly violated under deadline pressure):
+//
+//   1. On-hand is DERIVED from StockMove, never a mutable counter that
+//      "just this once" gets written directly.
+//   2. Every quantity change of every kind -- receipt, delivery, transfer,
+//      adjustment -- is a StockMove row. Rows are never edited or deleted;
+//      a correction is a new, opposite move, so the ledger stays a
+//      complete, backdatable, auditable history.
+//
+// StockQuant and StockValuationLayer both cache a running balance for
+// query performance, but each balance is provably a pure function of the
+// ledger before it -- tests/stock-ledger.test.ts replays the ledger from
+// scratch and asserts the replay equals the cache, which is the guardrail
+// that catches either cache ever drifting from the source of truth.
+// ============================================================
+
+enum StockMoveType {
+  receipt
+  delivery
+  transfer
+  adjustment
+}
+
+/// A traceable batch (lot) or unit (serial). Product.tracking selects which;
+/// a serial is modelled as a lot whose moves are always quantity 1, enforced
+/// in the service layer rather than by a second model.
+model Lot {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  productId String   @db.Uuid
+  code      String
+  expiresAt DateTime? @db.Date
+  notes     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  product Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  moves   StockMove[]
+  quants  StockQuant[]
+
+  @@unique([tenantId, productId, code])
+  @@index([tenantId])
+  @@map("lot")
+}
+
+/// THE LEDGER. Append-only. A row is never updated after creation except by
+/// its own audit fields never existing in the first place -- there is no
+/// updatedAt here on purpose.
+model StockMove {
+  id       String        @id @default(uuid()) @db.Uuid
+  tenantId String        @db.Uuid
+  type     StockMoveType
+
+  productId      String  @db.Uuid
+  fromLocationId String  @db.Uuid
+  toLocationId   String  @db.Uuid
+  lotId          String? @db.Uuid
+
+  /// Always positive. Direction is carried by from/to, never by sign --
+  /// a signed quantity is exactly the kind of ambiguity that turns into a
+  /// reconciliation bug six months in.
+  quantity Decimal @db.Decimal(19, 6)
+  /// Per-unit cost this move was valued at. Set on receipts (the tenant's
+  /// purchase cost) and on adjustment-in; computed at the current AVCO on
+  /// deliveries and adjustment-out -- see src/lib/inventory/avco.ts.
+  unitCost Decimal @db.Decimal(19, 4)
+
+  reference String?
+  /// Freeform now; becomes a real FK to SalesOrder/Delivery/PurchaseOrder in
+  /// P3+ once those documents exist. Kept as a string pair on purpose so
+  /// this model does not need a migration when that day comes.
+  sourceType String?
+  sourceId   String?
+
+  /// When it happened, which may be backdated. Distinct from createdAt.
+  movedAt DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  createdBy String?  @db.Uuid
+
+  product      Product  @relation(fields: [productId], references: [id])
+  fromLocation Location @relation("MoveFrom", fields: [fromLocationId], references: [id])
+  toLocation   Location @relation("MoveTo", fields: [toLocationId], references: [id])
+  lot          Lot?     @relation(fields: [lotId], references: [id])
+  valuation    StockValuationLayer?
+
+  @@index([tenantId, productId, movedAt])
+  @@index([tenantId, fromLocationId])
+  @@index([tenantId, toLocationId])
+  @@map("stock_move")
+}
+
+/// On-hand quantity per product / location / lot, CACHED from StockMove.
+/// Updated with atomic increment/decrement inside the same transaction that
+/// writes the move -- never read-modify-written in application code, which
+/// is what makes it safe under concurrent moves on the same row.
+model StockQuant {
+  id         String  @id @default(uuid()) @db.Uuid
+  tenantId   String  @db.Uuid
+  productId  String  @db.Uuid
+  locationId String  @db.Uuid
+  lotId      String? @db.Uuid
+
+  quantity Decimal @db.Decimal(19, 6) @default(0)
+
+  updatedAt DateTime @updatedAt
+
+  product  Product  @relation(fields: [productId], references: [id])
+  location Location @relation(fields: [locationId], references: [id])
+  lot      Lot?     @relation(fields: [lotId], references: [id])
+
+  // A nullable column inside a unique constraint does not collapse multiple
+  // NULLs in Postgres, which is exactly the behaviour wanted here: many
+  // untracked (lotId = NULL) quant rows for the same product/location would
+  // otherwise violate the constraint. Prisma's normal @@unique cannot express
+  // "treat NULL as a value" portably, so this is enforced by a partial
+  // unique index in the migration SQL instead (see 00000000000003_inventory).
+  @@index([tenantId, productId])
+  @@index([tenantId, locationId])
+  @@map("stock_quant")
+}
+
+/// AVCO valuation, one row per move that crosses into or out of owned stock
+/// (internal<->external, internal<->adjustment). A transfer between two
+/// internal locations creates NO layer -- the tenant already owned the
+/// stock, so moving shelves does not change its value.
+///
+/// balanceQty/balanceValue are the running total AFTER this layer, scoped to
+/// the product across every location (valuation is company-wide, matching
+/// every incumbent studied in Stage 1 research). Like StockQuant, this is a
+/// cache: tests/stock-ledger.test.ts replays every layer for a product from
+/// zero and asserts the replay matches what is stored here.
+model StockValuationLayer {
+  id          String  @id @default(uuid()) @db.Uuid
+  tenantId    String  @db.Uuid
+  productId   String  @db.Uuid
+  stockMoveId String  @unique @db.Uuid
+
+  /// Signed: positive for value entering the company (receipt, positive
+  /// adjustment), negative for value leaving it (delivery, negative
+  /// adjustment). This is the one place in the schema a signed quantity is
+  /// correct, because the sign IS the fact being recorded -- a value event,
+  /// not a stock movement (StockMove itself stays unsigned; see above).
+  quantity Decimal @db.Decimal(19, 6)
+  unitCost Decimal @db.Decimal(19, 4)
+  value    Decimal @db.Decimal(19, 4)
+
+  balanceQty   Decimal @db.Decimal(19, 6)
+  balanceValue Decimal @db.Decimal(19, 4)
+
+  movedAt   DateTime
+  createdAt DateTime @default(now())
+
+  product   Product   @relation(fields: [productId], references: [id])
+  stockMove StockMove @relation(fields: [stockMoveId], references: [id])
+
+  @@index([tenantId, productId, movedAt])
+  @@map("stock_valuation_layer")
+}
+
+/// Per-warehouse reorder threshold. More precise than Product.reorderPoint
+/// (a single tenant-wide default from P1) -- this is what a real multi-
+/// warehouse low-stock report uses when it exists; Product.reorderPoint
+/// remains the fallback when no rule is configured for a warehouse.
+model ReorderRule {
+  id          String  @id @default(uuid()) @db.Uuid
+  tenantId    String  @db.Uuid
+  productId   String  @db.Uuid
+  warehouseId String  @db.Uuid
+
+  minQty Decimal @db.Decimal(19, 6)
+  /// Suggested reorder-up-to quantity. Nullable: a tenant may only want the
+  /// low-stock flag, not a purchasing suggestion, yet.
+  maxQty Decimal? @db.Decimal(19, 6)
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, productId, warehouseId])
+  @@index([tenantId])
+  @@map("reorder_rule")
+}

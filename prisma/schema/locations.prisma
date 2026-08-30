@@ -36,7 +36,8 @@ model Warehouse {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  locations Location[]
+  locations    Location[]
+  reorderRules ReorderRule[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -64,6 +65,10 @@ model Location {
   warehouse Warehouse? @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
   parent    Location?  @relation("LocationTree", fields: [parentId], references: [id], onDelete: SetNull)
   children  Location[] @relation("LocationTree")
+  // Inventory (P2) -- see prisma/schema/inventory.prisma
+  movesFrom StockMove[]  @relation("MoveFrom")
+  movesTo   StockMove[]  @relation("MoveTo")
+  quants    StockQuant[]
 
   @@unique([tenantId, code])
   @@index([tenantId, warehouseId])

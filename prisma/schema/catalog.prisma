@@ -156,6 +156,12 @@ model Product {
   purchaseUom UnitOfMeasure?   @relation("PurchaseUom", fields: [purchaseUomId], references: [id], onDelete: SetNull)
   taxCategory TaxCategory?     @relation(fields: [taxCategoryId], references: [id], onDelete: SetNull)
   priceItems  PriceListItem[]
+  // Inventory (P2) -- see prisma/schema/inventory.prisma
+  stockMoves      StockMove[]
+  stockQuants     StockQuant[]
+  valuationLayers StockValuationLayer[]
+  lots            Lot[]
+  reorderRules    ReorderRule[]
 
   @@unique([tenantId, sku])
   @@index([tenantId, name])
