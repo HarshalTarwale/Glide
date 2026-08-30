@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db/client";
 import { withTenant } from "@/lib/db/tenant-client";
 import { SYSTEM_ROLES } from "@/lib/auth/permissions";
 import { getCountry } from "@/lib/i18n/countries";
+import { bootstrapTenant } from "./bootstrap-tenant";
 
 export const signupSchema = z.object({
   name: z.string().min(1, "Your name is required").max(120),
@@ -73,14 +74,19 @@ export async function signup(input: SignupInput) {
       },
     });
 
-    await tx.company.create({
+    const company = await tx.company.create({
       data: {
         tenantId,
         name: data.organisation,
         country: pack.code,
         currency: pack.currency,
       },
+      select: { id: true },
     });
+
+    // Essential master data, not demo content: Product.uomId is a non-null
+    // FK, so without this a new tenant cannot create a single product.
+    await bootstrapTenant(tx, tenantId, company.id, pack.code);
 
     // Seed the built-in roles for this tenant.
     await tx.role.createMany({

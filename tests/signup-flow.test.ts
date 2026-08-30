@@ -64,6 +64,84 @@ describeWithDb("signup flow", () => {
     expect(check.audit[0].action).toBe("created");
   });
 
+  it("bootstraps the master data a tenant cannot function without", async () => {
+    const result = await signup({
+      name: "Bootstrap Check",
+      email: `bootstrap-${Date.now()}@example.com`,
+      password: "password123",
+      organisation: "Bootstrap Co",
+      country: "IN",
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    createdTenants.push(result.tenantId);
+
+    const seeded = await withTenant(result.tenantId, async (tx) => ({
+      uoms: await tx.unitOfMeasure.findMany({ where: { tenantId: result.tenantId } }),
+      taxCategories: await tx.taxCategory.findMany({ where: { tenantId: result.tenantId } }),
+      taxRates: await tx.taxRate.findMany({ where: { tenantId: result.tenantId } }),
+      priceLists: await tx.priceList.findMany({ where: { tenantId: result.tenantId } }),
+      warehouses: await tx.warehouse.findMany({ where: { tenantId: result.tenantId } }),
+      locations: await tx.location.findMany({ where: { tenantId: result.tenantId } }),
+    }));
+
+    expect(seeded.uoms.length).toBeGreaterThan(0);
+    expect(seeded.taxCategories.map((c) => c.key).sort()).toEqual([
+      "exempt",
+      "reduced",
+      "standard",
+      "zero",
+    ]);
+    // India: GST 18 / 5 / 0
+    expect(seeded.taxRates).toHaveLength(3);
+    expect(seeded.priceLists).toHaveLength(1);
+    expect(seeded.priceLists[0].currency).toBe("INR");
+    expect(seeded.warehouses).toHaveLength(1);
+    // internal + 2 external counterparties + adjustment, so P2's ledger balances
+    expect(seeded.locations).toHaveLength(4);
+    expect(seeded.locations.filter((l) => l.kind === "internal")).toHaveLength(1);
+    expect(seeded.locations.filter((l) => l.kind === "adjustment")).toHaveLength(1);
+  });
+
+  it("lets a brand-new tenant actually create a product", async () => {
+    // The regression this guards: Product.uomId is a non-null FK, so before
+    // bootstrapTenant existed a fresh tenant could not create ANY product.
+    const result = await signup({
+      name: "Product Check",
+      email: `product-${Date.now()}@example.com`,
+      password: "password123",
+      organisation: "Product Co",
+      country: "GB",
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    createdTenants.push(result.tenantId);
+
+    const product = await withTenant(result.tenantId, async (tx) => {
+      const uom = await tx.unitOfMeasure.findFirstOrThrow({
+        where: { tenantId: result.tenantId, code: "pcs" },
+        select: { id: true },
+      });
+      const taxCategory = await tx.taxCategory.findFirstOrThrow({
+        where: { tenantId: result.tenantId, key: "standard" },
+        select: { id: true },
+      });
+      return tx.product.create({
+        data: {
+          tenantId: result.tenantId,
+          sku: "TEST-001",
+          name: "Test Widget",
+          uomId: uom.id,
+          taxCategoryId: taxCategory.id,
+          salesPrice: "19.99",
+        },
+        select: { id: true, sku: true, name: true },
+      });
+    });
+
+    expect(product.sku).toBe("TEST-001");
+  });
+
   it("rejects a second signup with the same email", async () => {
     const email = `dup-${Date.now()}@example.com`;
     const first = await signup({

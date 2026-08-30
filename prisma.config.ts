@@ -59,5 +59,10 @@ export default defineConfig({
   // (DATABASE_URL) must be a DIFFERENT, unprivileged role.
   datasource: {
     url: datasourceUrl(),
+    // Throwaway database Prisma uses to compute migration diffs and detect
+    // drift. Never holds real data and is only touched by `migrate dev` /
+    // `migrate diff` locally -- `migrate deploy` (what CI/production runs)
+    // does not need it, so it is optional.
+    shadowDatabaseUrl: process.env.SHADOW_DATABASE_URL,
   },
 });

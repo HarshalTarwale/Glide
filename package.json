@@ -16,7 +16,9 @@
     "db:studio": "prisma studio",
     "db:rls": "node scripts/gen-rls-migration.mjs",
     "db:seed": "tsx --env-file=.env prisma/seed.ts",
-    "db:setup": "npm run db:migrate && npm run db:seed"
+    "db:setup": "npm run db:migrate && npm run db:seed",
+    "db:demo": "vitest run tests/demo-data.test.ts",
+    "db:backfill": "node scripts/backfill-tenant-bootstrap.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.3",

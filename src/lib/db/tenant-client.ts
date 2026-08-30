@@ -23,19 +23,45 @@ import { prisma } from "./client";
  */
 export type TenantTransaction = Prisma.TransactionClient;
 
+export interface TenantTxOptions {
+  /** Milliseconds the transaction may run before Postgres rolls it back. */
+  timeout?: number;
+  /** Milliseconds to wait for a free connection before giving up. */
+  maxWait?: number;
+}
+
+/**
+ * Prisma defaults to a 5s interactive-transaction timeout, which assumes a
+ * database on the same network. Every statement here is a WebSocket round
+ * trip to Neon, so a legitimately multi-step operation (signup creates a
+ * tenant, company, master data, roles, membership and an audit entry) blows
+ * through 5s on a normal connection. 20s is the floor that makes those
+ * operations reliable without masking a genuinely stuck transaction.
+ *
+ * Individual callers can still tighten or extend this per call.
+ */
+const DEFAULT_TX_OPTIONS: Required<TenantTxOptions> = {
+  timeout: 20_000,
+  maxWait: 10_000,
+};
+
 export async function withTenant<T>(
   tenantId: string,
-  work: (tx: TenantTransaction) => Promise<T>
+  work: (tx: TenantTransaction) => Promise<T>,
+  options: TenantTxOptions = {}
 ): Promise<T> {
   assertUuid(tenantId);
 
-  return prisma.$transaction(async (tx) => {
-    // Parameterised — never string-interpolated. set_config() is used rather
-    // than literal `SET LOCAL` precisely because it accepts a bind parameter.
-    // The third argument `true` makes it transaction-local.
-    await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
-    return work(tx);
-  });
+  return prisma.$transaction(
+    async (tx) => {
+      // Parameterised — never string-interpolated. set_config() is used rather
+      // than literal `SET LOCAL` precisely because it accepts a bind parameter.
+      // The third argument `true` makes it transaction-local.
+      await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
+      return work(tx);
+    },
+    { ...DEFAULT_TX_OPTIONS, ...options }
+  );
 }
 
 /**
@@ -56,10 +82,13 @@ export async function withUser<T>(
 ): Promise<T> {
   assertUuid(userId);
 
-  return prisma.$transaction(async (tx) => {
-    await tx.$executeRaw`SELECT set_config('app.current_user_id', ${userId}, true)`;
-    return work(tx);
-  });
+  return prisma.$transaction(
+    async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.current_user_id', ${userId}, true)`;
+      return work(tx);
+    },
+    DEFAULT_TX_OPTIONS
+  );
 }
 
 /**
