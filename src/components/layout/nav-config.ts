@@ -1,5 +1,6 @@
 import {
   Boxes,
+  Warehouse,
   Building2,
   Contact,
   FileText,
@@ -38,6 +39,7 @@ export const NAV: NavGroup[] = [
     items: [
       { label: "Overview", href: "/app", icon: LayoutDashboard },
       { label: "Inventory", href: "/app/inventory", icon: Boxes, permission: "inventory:product:read" },
+      { label: "Warehouses", href: "/app/inventory/warehouses", icon: Warehouse, permission: "inventory:warehouse:read" },
       { label: "Sales", href: "/app/sales", icon: ShoppingCart, permission: "sales:order:read" },
       { label: "Purchases", href: "/app/purchases", icon: Truck, soon: true },
     ],

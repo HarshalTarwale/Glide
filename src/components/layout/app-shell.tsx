@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { Toaster } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { FormatProvider } from "@/components/erp/format-context";
 import { SessionProvider, type SessionInfo } from "./session-context";
@@ -60,6 +61,12 @@ export function AppShell({
               <main className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</main>
             </div>
             <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+            <Toaster
+              position="bottom-right"
+              toastOptions={{
+                className: "!bg-surface-raised !text-ink !border !border-hairline !shadow-raised !rounded-lg !text-sm",
+              }}
+            />
           </div>
         </FormatProvider>
       </TooltipProvider>

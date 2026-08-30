@@ -2,11 +2,14 @@ import { searchParamsToQuery } from "@/lib/query/record-query";
 import { runQuery } from "@/lib/query/record-query";
 import { getContext } from "@/server/context";
 import { listProducts, type ProductDTO } from "@/server/catalog/products";
+import { getCatalogOptions, type CatalogOptions } from "@/server/catalog/options";
 import { DEMO_PRODUCTS } from "@/lib/mock/products";
 import type { RecordPage } from "@/lib/query/record-query";
 import { ProductsView } from "./products-view";
 
 export const metadata = { title: "Products" };
+
+const EMPTY_OPTIONS: CatalogOptions = { units: [], categories: [], taxCategories: [] };
 
 /**
  * A SERVER component. The query runs in Postgres through the DAL, and only a
@@ -15,7 +18,8 @@ export const metadata = { title: "Products" };
  *
  * Without a session it falls back to the in-memory demo catalog, evaluated by
  * the client-side twin of the same RecordQuery. Identical semantics, so the
- * screen behaves the same either way.
+ * screen behaves the same either way. Create/edit is disabled in that mode:
+ * there is no tenant to write into and no permission to check against.
  */
 export default async function ProductsPage({ searchParams }: PageProps<"/app/inventory">) {
   const params = await searchParams;
@@ -29,10 +33,11 @@ export default async function ProductsPage({ searchParams }: PageProps<"/app/inv
   const ctx = await getContext();
 
   let page: RecordPage<ProductDTO>;
+  let options = EMPTY_OPTIONS;
   let live = false;
 
   if (ctx) {
-    page = await listProducts(ctx, query);
+    [page, options] = await Promise.all([listProducts(ctx, query), getCatalogOptions(ctx)]);
     live = true;
   } else {
     page = runQuery(
@@ -42,5 +47,5 @@ export default async function ProductsPage({ searchParams }: PageProps<"/app/inv
     );
   }
 
-  return <ProductsView page={page} query={query} live={live} />;
+  return <ProductsView page={page} query={query} live={live} options={options} />;
 }

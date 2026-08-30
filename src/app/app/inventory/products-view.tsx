@@ -2,16 +2,20 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Download, Package, Plus, Upload } from "lucide-react";
+import { toast } from "sonner";
+import { Archive, Download, Package, Plus, Upload } from "lucide-react";
 import { PageHeader } from "@/components/erp/page-header";
 import { FilterBar, type QuickFilter } from "@/components/erp/filter-bar";
 import { DataTable, type Column } from "@/components/erp/data-table";
 import { Money, Code } from "@/components/erp/money";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { PermissionGate } from "@/components/layout/session-context";
+import { PermissionGate, useHasPermission } from "@/components/layout/session-context";
 import { queryToSearchParams, type RecordPage, type RecordQuery } from "@/lib/query/record-query";
 import type { ProductDTO } from "@/server/catalog/products";
+import type { CatalogOptions } from "@/server/catalog/options";
+import { ProductForm } from "./product-form";
+import { archiveProductAction } from "./actions";
 
 const QUICK_FILTERS: QuickFilter[] = [
   { id: "active", label: "Active", filters: [{ field: "isActive", op: "eq", value: true, label: "Active" }] },
@@ -30,12 +34,43 @@ export function ProductsView({
   page,
   query,
   live,
+  options,
 }: {
   page: RecordPage<ProductDTO>;
   query: RecordQuery;
   live: boolean;
+  options: CatalogOptions;
 }) {
   const router = useRouter();
+  const canWrite = useHasPermission("inventory:product:write");
+  const [formOpen, setFormOpen] = React.useState(false);
+  const [editing, setEditing] = React.useState<ProductDTO | null>(null);
+
+  function openCreate() {
+    setEditing(null);
+    setFormOpen(true);
+  }
+
+  function openEdit(product: ProductDTO) {
+    if (!live || !canWrite) return;
+    setEditing(product);
+    setFormOpen(true);
+  }
+
+  function handleSaved() {
+    toast.success(editing ? "Product updated" : "Product created");
+    router.refresh();
+  }
+
+  async function handleArchive(id: string, name: string) {
+    const result = await archiveProductAction(id);
+    if (result.ok) {
+      toast.success(`${name} archived`);
+      router.refresh();
+    } else {
+      toast.error(result.error ?? "Could not archive product");
+    }
+  }
 
   // The query lives in the URL. Changing it navigates, which re-runs the
   // server component and re-queries Postgres — no client-side data fetching.
@@ -131,6 +166,28 @@ export function ProductsView({
     },
   ];
 
+  if (live && canWrite) {
+    columns.push({
+      id: "rowActions",
+      header: "",
+      width: "40px",
+      cell: (r) =>
+        r.isActive ? (
+          <Button
+            variant="ghost"
+            size="iconSm"
+            aria-label={`Archive ${r.name}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              void handleArchive(r.id, r.name);
+            }}
+          >
+            <Archive className="text-ink-subtle" />
+          </Button>
+        ) : null,
+    });
+  }
+
   return (
     <>
       <PageHeader
@@ -154,7 +211,7 @@ export function ProductsView({
               Export
             </Button>
             <PermissionGate permission="inventory:product:write">
-              <Button variant="primary" size="md">
+              <Button variant="primary" size="md" onClick={openCreate} disabled={!live}>
                 <Plus />
                 New product
               </Button>
@@ -177,8 +234,13 @@ export function ProductsView({
         query={query}
         onQueryChange={setQuery}
         rowKey={(r) => r.id}
+        onRowClick={live && canWrite ? openEdit : undefined}
         emptyTitle="No products match this filter"
-        emptyDescription="Adjust the filters, or add your first product to the catalogue."
+        emptyDescription={
+          live
+            ? "Adjust the filters, or add your first product to the catalogue."
+            : "Adjust the filters, or connect a database to add real products."
+        }
         bulkActions={() => (
           <>
             <Button variant="secondary" size="sm">
@@ -192,6 +254,16 @@ export function ProductsView({
           </>
         )}
       />
+
+      {live ? (
+        <ProductForm
+          open={formOpen}
+          onOpenChange={setFormOpen}
+          product={editing}
+          options={options}
+          onSaved={handleSaved}
+        />
+      ) : null}
     </>
   );
 }

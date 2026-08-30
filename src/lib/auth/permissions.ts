@@ -26,6 +26,7 @@ export const PERMISSIONS = {
   inventory: {
     product: ["inventory:product:read", "inventory:product:write"],
     stock: ["inventory:stock:read", "inventory:stock:move", "inventory:stock:adjust"],
+    warehouse: ["inventory:warehouse:read", "inventory:warehouse:write"],
   },
   sales: {
     order: [
@@ -121,6 +122,7 @@ export const SYSTEM_ROLES: SystemRole[] = [
       ...PERMISSIONS.invoicing.payment,
       "inventory:product:read",
       "inventory:stock:read",
+      "inventory:warehouse:read",
       "core:member:read",
     ],
     recordScope: null,
@@ -149,6 +151,7 @@ export const SYSTEM_ROLES: SystemRole[] = [
       "inventory:stock:read",
       "inventory:stock:move",
       "inventory:stock:adjust",
+      "inventory:warehouse:read",
       "sales:order:read",
     ],
     recordScope: "own_warehouse",
