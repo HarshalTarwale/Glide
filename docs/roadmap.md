@@ -71,17 +71,32 @@ The build order is not a preference. It follows the direction data flows through
 
 ---
 
-### P1 — Master data  ·  *schema, tax engine and query layer delivered*
+### P1 — Master data  ·  *CRUD complete; import/saved-views/comments remain*
 
 **Delivered:** Prisma schema for Partner / Product / Category / UoM / TaxRate /
-TaxCategory / PriceList / Warehouse / Location (30 tables total, RLS regenerated
-across all 21 tenant-scoped tables). The five-regime tax engine with 32 golden
-cases. Server-side `RecordQuery` compilation with 14 tests. Product service
-(DAL) with permission layer 4 in the serializer. Products list as a true Server
-Component.
+TaxCategory / PriceList / Warehouse / Location (30 tables total, RLS across all
+23 tenant-scoped tables). The five-regime tax engine with 32 golden cases.
+Server-side `RecordQuery` compilation. Full CRUD, with a real screen and a
+working create/edit form, for all three entities that block P2/P3:
 
-**Still open in P1:** CSV import, saved-view persistence, chatter comments,
-partner and warehouse UI, product create/edit forms.
+- **Products** — list + create/edit dialog + archive, cost hidden by
+  permission layer 4 in the serializer.
+- **Contacts (Partner)** — list + create/edit, billing address and primary
+  tax registration edited inline in one transaction, archive.
+- **Warehouses** — list + create/edit + archive; creating one creates its
+  own internal stock location, so P2's move ledger always has somewhere to
+  move stock into.
+
+A tenant bootstrap (`bootstrap-tenant.ts`) seeds the units, tax categories,
+default rates, price list and warehouse a fresh signup needs before any of
+the above is usable — without it, `Product.uomId` being a non-null FK meant
+a new tenant could not create a single product. Verified end to end against
+live Neon: signed in over HTTP, created/edited/archived rows through the
+real service layer, confirmed RLS still scopes every one of them.
+
+**Still open in P1:** CSV import, saved-view persistence, chatter comments.
+None of these block P2 — they are usability, not a missing capability a user
+cannot work around.
 
 **Scope:** Product, ProductVariant, Category, UnitOfMeasure + conversions, Partner (customer/supplier/contact in one model), PartnerAddress, PartnerTaxInfo, Warehouse, Location, PriceList, TaxRate, and the five country packs' **tax computation** (the display layer already exists from Stage 2).
 
