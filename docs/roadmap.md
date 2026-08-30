@@ -114,13 +114,35 @@ Also lands here, because P1 is the first phase with enough real rows to justify 
 
 ---
 
-### P2 — Inventory
+### P2 — Inventory  ·  **Acceptance gate PASSED, verified against live Neon**
 
-**Scope:** the `StockMove` ledger, derived `StockQuant`, receipts, deliveries, internal transfers, adjustments, Lot/Serial tracking (per-product flag), AVCO valuation via `StockValuationLayer`, reorder rules, stock-on-hand and valuation reports.
+**Delivered:** `StockMove` (immutable ledger), `StockQuant` (cached on-hand,
+atomic increment/decrement only), `StockValuationLayer` (company-wide AVCO),
+`Lot` (lot/serial tracking), `ReorderRule`. Four operations — receive,
+deliver, transfer, adjust — funnelling through one `recordMove` primitive
+so the two non-negotiable rules from architecture §5.6 live in one place
+rather than four. A `SELECT ... FOR UPDATE` lock on the source quant makes
+the sufficiency check race-free under concurrent moves. `/app/inventory/stock`
+report screen: on-hand + AVCO value + low-stock flag per product, one dialog
+for all four move types.
 
-**Done when:** a receipt raises on-hand, a delivery lowers it, an adjustment reconciles, valuation matches a hand-computed AVCO figure, and every one of those numbers is *derived from the move ledger* rather than read from a counter — verified by a test that rebuilds on-hand from moves and asserts it equals the cached quant.
+**The gate itself, restated and confirmed green:** a receipt raises on-hand,
+a delivery lowers it, an adjustment reconciles, valuation matches a
+hand-computed AVCO figure, and every one of those numbers is *derived from
+the move ledger* — `tests/stock-ledger.test.ts` rebuilds each independently
+from `StockMove`/`StockValuationLayer` and asserts equality with the cache.
+8/8 pass against live Neon; `tests/avco.test.ts` covers the weighted-average
+math itself with 10 dependency-free golden cases.
 
-**Key risk:** the temptation to cache on-hand as a mutable column "just for now." Architecture §5.6 names this as one of the two decisions most likely to be quietly violated under deadline pressure.
+**Key risk, resolved:** on-hand never became a mutable counter — `StockQuant`
+is written only via Prisma's atomic `increment`/`decrement` inside the same
+transaction as the `StockMove` row that justifies it, proven by the
+rebuild-and-compare tests rather than asserted by comment.
+
+**Still open in P2:** Lot/Serial has ledger + on-hand support but no
+dedicated management screen; `ReorderRule` (per-warehouse threshold) has a
+schema but no UI — the stock report currently uses `Product.reorderPoint`
+(the P1 tenant-wide default) for its low-stock flag. Neither blocks P3.
 
 ---
 
