@@ -38,6 +38,7 @@ model Warehouse {
 
   locations    Location[]
   reorderRules ReorderRule[]
+  salesOrders  SalesOrder[]
 
   @@unique([tenantId, code])
   @@index([tenantId])

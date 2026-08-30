@@ -91,7 +91,20 @@ export type AdjustStockInput = z.infer<typeof adjustStockSchema>;
 /* The primitive every public operation funnels through               */
 /* ------------------------------------------------------------------ */
 
-interface RecordMoveArgs {
+/**
+ * Exported for cross-module use inside an ALREADY-OPEN tenant transaction --
+ * P3's sales module calls this directly when a Delivery consumes stock, so
+ * that creating the Delivery/DeliveryLine rows and the resulting StockMove
+ * commit or fail together as one unit, rather than as two separate
+ * transactions that could leave a Delivery with no matching stock movement.
+ *
+ * NO PERMISSION CHECK -- this is the primitive, not the public API. The
+ * caller is responsible for asserting whatever permission gates ITS action
+ * ("ship this sales order" is a sales:order permission, not a redundant
+ * inventory:stock:move check on top of it). Every public function below
+ * (receiveStock, deliverStock, ...) checks a permission before calling this.
+ */
+export interface RecordMoveArgs {
   tenantId: string;
   userId: string;
   type: MoveKind;
@@ -106,7 +119,7 @@ interface RecordMoveArgs {
   movedAt?: Date;
 }
 
-async function recordMove(tx: TenantTransaction, args: RecordMoveArgs) {
+export async function recordMove(tx: TenantTransaction, args: RecordMoveArgs) {
   const [product, fromLocation, toLocation] = await Promise.all([
     tx.product.findUniqueOrThrow({ where: { id: args.productId } }),
     tx.location.findUniqueOrThrow({ where: { id: args.fromLocationId } }),

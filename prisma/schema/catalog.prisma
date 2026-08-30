@@ -58,6 +58,7 @@ model UnitOfMeasure {
 
   products        Product[]
   purchaseProducts Product[] @relation("PurchaseUom")
+  salesOrderLines  SalesOrderLine[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -77,8 +78,9 @@ model TaxCategory {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  products Product[]
-  rates    TaxRate[]
+  products        Product[]
+  rates           TaxRate[]
+  salesOrderLines SalesOrderLine[]
 
   @@unique([tenantId, key])
   @@index([tenantId])
@@ -162,6 +164,8 @@ model Product {
   valuationLayers StockValuationLayer[]
   lots            Lot[]
   reorderRules    ReorderRule[]
+  salesOrderLines SalesOrderLine[]
+  deliveryLines   DeliveryLine[]
 
   @@unique([tenantId, sku])
   @@index([tenantId, name])
@@ -183,8 +187,9 @@ model PriceList {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  items    PriceListItem[]
-  partners Partner[]
+  items       PriceListItem[]
+  partners    Partner[]
+  salesOrders SalesOrder[]
 
   @@unique([tenantId, name])
   @@index([tenantId])

@@ -1,0 +1,187 @@
+// ============================================================
+// SALES — Quotation → SalesOrder → SalesOrderLine → Delivery.
+//
+// ONE document, not two: `SalesOrder` covers both the quotation and
+// confirmed-order states via `status`, matching the UI and mock data
+// Stage 2 already shipped (src/lib/mock/sales-orders.ts). Odoo does the
+// same (sale.order transitions draft -> sale), and splitting Quotation and
+// SalesOrder into separate tables would mean migrating rows between them
+// the moment a quote is confirmed -- exactly the kind of state-as-a-table-
+// switch that makes audit trails and numbering awkward for no real benefit.
+//
+// THE non-negotiable rule from Stage 1 research, restated because it drove
+// every field below: every line carries qtyOrdered/qtyDelivered/qtyInvoiced,
+// and the header `status` is DERIVED from them -- see
+// src/lib/sales/order-status.ts for the pure function and
+// tests/order-status.test.ts for the golden cases. `status` is still a real
+// column (recomputed and written by the service on every mutation that
+// changes a line's delivered/invoiced quantity) for the same reason
+// StockQuant is a real column in P2: query performance, with a
+// reconciliation test as the guardrail against drift.
+// ============================================================
+
+enum SalesOrderStatus {
+  draft
+  confirmed
+  partially_delivered
+  delivered
+  invoiced
+  cancelled
+}
+
+/// Which quantity an invoice is allowed to draw from -- the Stage 1 finding
+/// that this must be a first-class setting, not a hardcoded flow. Ordered
+/// suits services and prepaid goods; delivered is the standard for physical
+/// goods (you cannot invoice what has not shipped).
+enum InvoicingPolicy {
+  invoice_ordered
+  invoice_delivered
+}
+
+model SalesOrder {
+  id        String @id @default(uuid()) @db.Uuid
+  tenantId  String @db.Uuid
+  companyId String @db.Uuid
+
+  number String
+
+  partnerId String @db.Uuid
+  /// Snapshot of the customer's currency at order time, so a later change to
+  /// the partner's currency never reshapes a historical order.
+  currency  String @db.Char(3)
+
+  status          SalesOrderStatus @default(draft)
+  invoicingPolicy InvoicingPolicy  @default(invoice_delivered)
+
+  warehouseId String  @db.Uuid
+  priceListId String? @db.Uuid
+
+  orderDate            DateTime  @default(now()) @db.Date
+  expectedDeliveryDate DateTime? @db.Date
+
+  salespersonId String? @db.Uuid
+
+  /// Cached from lines, recomputed on every line change -- same derivation
+  /// discipline as `status`. Never written to directly by a form.
+  subtotal Decimal @db.Decimal(19, 4) @default(0)
+  taxTotal Decimal @db.Decimal(19, 4) @default(0)
+  total    Decimal @db.Decimal(19, 4) @default(0)
+
+  notes String?
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  createdBy    String?   @db.Uuid
+  updatedBy    String?   @db.Uuid
+  deletedAt    DateTime?
+  customFields Json      @default("{}")
+
+  partner    Partner          @relation(fields: [partnerId], references: [id])
+  warehouse  Warehouse        @relation(fields: [warehouseId], references: [id])
+  priceList  PriceList?       @relation(fields: [priceListId], references: [id], onDelete: SetNull)
+  lines      SalesOrderLine[]
+  deliveries Delivery[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status])
+  @@index([tenantId, partnerId])
+  @@map("sales_order")
+}
+
+model SalesOrderLine {
+  id           String @id @default(uuid()) @db.Uuid
+  tenantId     String @db.Uuid
+  salesOrderId String @db.Uuid
+
+  /// Stable display order, independent of insertion order -- reordering
+  /// lines in the editor changes this, not the row's identity.
+  sequence Int
+
+  productId String @db.Uuid
+  /// Snapshot of the product name at order time. A product can be renamed
+  /// or archived years later; the order must still read the way it did on
+  /// the day it was placed.
+  description String
+
+  uomId    String  @db.Uuid
+  qtyOrdered   Decimal @db.Decimal(19, 6)
+  /// Rolled up from DeliveryLine on every delivery -- never set directly.
+  qtyDelivered Decimal @db.Decimal(19, 6) @default(0)
+  /// Rolled up from invoice lines once P4 exists; 0 until then.
+  qtyInvoiced  Decimal @db.Decimal(19, 6) @default(0)
+
+  /// Snapshot from the price list (or Product.salesPrice) at the moment the
+  /// line was added -- a later price change must never reshape a placed
+  /// order.
+  unitPrice   Decimal @db.Decimal(19, 4)
+  discountPct Decimal @db.Decimal(9, 4) @default(0)
+
+  taxCategoryId String? @db.Uuid
+
+  /// Cached, derived from qty/price/discount/tax -- see order-status.ts.
+  subtotal  Decimal @db.Decimal(19, 4)
+  taxAmount Decimal @db.Decimal(19, 4) @default(0)
+  total     Decimal @db.Decimal(19, 4)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  salesOrder    SalesOrder      @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  product       Product         @relation(fields: [productId], references: [id])
+  uom           UnitOfMeasure   @relation(fields: [uomId], references: [id])
+  taxCategory   TaxCategory?    @relation(fields: [taxCategoryId], references: [id], onDelete: SetNull)
+  deliveryLines DeliveryLine[]
+
+  @@index([tenantId, salesOrderId])
+  @@map("sales_order_line")
+}
+
+/// One shipment event against an order. An order may have several -- the
+/// Stage 1 finding that partial fulfilment is the normal case, not an edge
+/// case. Created already `done`: v1 has no separate pick/pack/confirm
+/// workflow for a delivery, so recording one IS the act of shipping it.
+model Delivery {
+  id           String @id @default(uuid()) @db.Uuid
+  tenantId     String @db.Uuid
+  salesOrderId String @db.Uuid
+
+  number String
+
+  deliveryDate DateTime @default(now()) @db.Date
+  notes        String?
+
+  createdAt DateTime @default(now())
+  createdBy String?  @db.Uuid
+
+  salesOrder SalesOrder     @relation(fields: [salesOrderId], references: [id])
+  lines      DeliveryLine[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, salesOrderId])
+  @@map("delivery")
+}
+
+/// Links back to the exact StockMove it generated -- confirmed in
+/// docs/architecture.md §5.4: "each delivery line links back to the
+/// StockMove(s) it generated". One DeliveryLine always produces exactly one
+/// StockMove (via deliverStock in P2's stock service); a SalesOrderLine can
+/// be spread across many DeliveryLines as partial shipments accumulate.
+model DeliveryLine {
+  id           String @id @default(uuid()) @db.Uuid
+  tenantId     String @db.Uuid
+  deliveryId   String @db.Uuid
+  salesOrderLineId String @db.Uuid
+
+  productId   String  @db.Uuid
+  quantity    Decimal @db.Decimal(19, 6)
+  stockMoveId String  @unique @db.Uuid
+
+  delivery       Delivery       @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  salesOrderLine SalesOrderLine @relation(fields: [salesOrderLineId], references: [id])
+  product        Product        @relation(fields: [productId], references: [id])
+  stockMove      StockMove      @relation(fields: [stockMoveId], references: [id])
+
+  @@index([tenantId, deliveryId])
+  @@index([tenantId, salesOrderLineId])
+  @@map("delivery_line")
+}

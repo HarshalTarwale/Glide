@@ -51,8 +51,9 @@ model Partner {
   parent    Partner?         @relation("PartnerHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
   children  Partner[]        @relation("PartnerHierarchy")
   priceList PriceList?       @relation(fields: [priceListId], references: [id], onDelete: SetNull)
-  addresses PartnerAddress[]
-  taxInfo   PartnerTaxInfo[]
+  addresses   PartnerAddress[]
+  taxInfo     PartnerTaxInfo[]
+  salesOrders SalesOrder[]
 
   @@unique([tenantId, code])
   @@index([tenantId, name])
