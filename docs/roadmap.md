@@ -139,10 +139,13 @@ is written only via Prisma's atomic `increment`/`decrement` inside the same
 transaction as the `StockMove` row that justifies it, proven by the
 rebuild-and-compare tests rather than asserted by comment.
 
-**Still open in P2:** Lot/Serial has ledger + on-hand support but no
-dedicated management screen; `ReorderRule` (per-warehouse threshold) has a
-schema but no UI — the stock report currently uses `Product.reorderPoint`
-(the P1 tenant-wide default) for its low-stock flag. Neither blocks P3.
+**P2 is now fully closed.** Lot/serial traceability shipped as a report tab
+(on-hand per lot, expiry with a 30-day warning flag). `ReorderRule` shipped
+with full CRUD, scoped correctly: the existing stock report's low-stock flag
+stays on `Product.reorderPoint` (company-wide on-hand vs a tenant-wide
+default), since a per-warehouse threshold has no well-defined meaning
+against a company-wide sum — a genuinely per-warehouse low-stock report is
+a natural addition once a screen needs one, not a forced wiring now.
 
 ---
 
