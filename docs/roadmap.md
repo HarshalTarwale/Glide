@@ -149,13 +149,47 @@ a natural addition once a screen needs one, not a forced wiring now.
 
 ---
 
-### P3 — Sales
+### P3 — Sales  ·  **Acceptance gate PASSED, verified live end to end**
 
-**Scope:** Quotation → SalesOrder → SalesOrderLine → Delivery. Server-defined state machine. Stock reservation on confirmation. Delivery generation from the order. Per-line `qty_ordered` / `qty_delivered` / `qty_invoiced`. Invoicing policy field. Discounts and price lists. The editable `LineItemsEditor` with keyboard row navigation (Stage 2 shipped the read-only table).
+**Delivered:** ONE `SalesOrder` model covering quotation and confirmed-order
+states via `status` (not two tables — matches the Stage 2 UI and mock data
+exactly). Every line carries `qtyOrdered`/`qtyDelivered`/`qtyInvoiced`.
+`Delivery`/`DeliveryLine` link back to the exact `StockMove` each line
+generated. Full CRUD screens: list, create (with the editable
+`LineItemsEditor` — the piece Stage 2 shipped only read-only), record page
+with a real state machine driving `StatusStepper` and the action buttons,
+and a Deliver dialog. Confirm/Deliver/Cancel wired to Server Actions with
+the same permission gates the service layer itself asserts.
 
-**Done when:** quote → order → delivery visibly reduces on-hand in Inventory, a partial delivery leaves the order in `partially_delivered` with the remainder still tracked, and the header status is provably derived from line quantities rather than stored.
+**The gate, restated and confirmed green:** quote → order → delivery
+visibly reduces on-hand in Inventory, a partial delivery leaves the order
+`partially_delivered` with the remainder tracked, and the header status is
+provably derived from line quantities — `tests/sales-orders.test.ts`
+proves this against live Neon (6/6), and the flow was additionally driven
+through real HTTP as the demo user: create → confirm → partial-deliver,
+confirmed on the rendered record page (correct status badges, CGST 9% +
+SGST 9% = ₹1,224 from the P1 tax engine, "8 / 20" delivered ratio, a real
+three-entry audit trail).
 
-The Stage 2 mock data was deliberately built with partial-fulfilment states so the UI is already proven against this shape.
+**Two deliberate scope decisions, stated rather than silently implied:**
+- **"Stock reservation on confirmation"** (the original Scope line) means
+  confirming an order does NOT move stock — nothing has physically
+  happened yet. Overselling is prevented at the point stock actually ships
+  (`createDelivery`'s `FOR UPDATE` check from P2), not via a soft
+  reservation quantity. A true reserved-quantity system (warning a second
+  order "37 of these are already promised" before it tries to ship) is
+  real, deferred v2 work.
+- **Keyboard row navigation** in the line-items editor is native tab-order
+  (real `<select>`/`<input>` elements), not custom arrow-key cell movement
+  like a spreadsheet. Worth building against real usage feedback, not
+  speculatively now.
+
+**A real bug the acceptance test caught before any UI existed:** the P1
+GST engine correctly throws when seller/buyer state is missing (place of
+supply can't be determined), and a fresh tenant's `Company.region` is null
+by default — every Indian sales order would fail until onboarding collects
+it. Not a test artifact; documented in the test fixture as the same
+precondition a real company must satisfy before its first invoice.
 
 ---
 
