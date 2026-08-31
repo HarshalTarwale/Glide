@@ -43,6 +43,7 @@ export const PERMISSIONS = {
       "invoicing:invoice:post",
       "invoicing:invoice:cancel",
     ],
+    creditnote: ["invoicing:creditnote:read", "invoicing:creditnote:write"],
     payment: ["invoicing:payment:read", "invoicing:payment:write"],
   },
 } as const;
@@ -119,6 +120,7 @@ export const SYSTEM_ROLES: SystemRole[] = [
       ...PERMISSIONS.core.partner,
       ...PERMISSIONS.sales.order,
       ...PERMISSIONS.invoicing.invoice,
+      ...PERMISSIONS.invoicing.creditnote,
       ...PERMISSIONS.invoicing.payment,
       "inventory:product:read",
       "inventory:stock:read",
@@ -161,6 +163,7 @@ export const SYSTEM_ROLES: SystemRole[] = [
     description: "Invoicing and payments. Read-only on operations.",
     permissions: [
       ...PERMISSIONS.invoicing.invoice,
+      ...PERMISSIONS.invoicing.creditnote,
       ...PERMISSIONS.invoicing.payment,
       "core:partner:read",
       "sales:order:read",

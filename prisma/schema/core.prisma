@@ -12,28 +12,28 @@
 
 /// A customer of Glide. The top of the isolation boundary.
 model Tenant {
-  id        String   @id @default(uuid()) @db.Uuid
-  name      String
-  slug      String   @unique
+  id       String @id @default(uuid()) @db.Uuid
+  name     String
+  slug     String @unique
   /// ISO 3166-1 alpha-2. Drives currency, number format and tax regime.
-  country   String   @default("IN")
+  country  String @default("IN")
   /// Base currency for cross-company reporting.
-  currency  String   @default("INR")
-  timeZone  String   @default("Asia/Kolkata")
+  currency String @default("INR")
+  timeZone String @default("Asia/Kolkata")
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  companies    Company[]
-  memberships  Membership[]
-  roles        Role[]
-  invitations  Invitation[]
-  auditLogs    AuditLog[]
-  sequences    NumberSequence[]
-  attachments  Attachment[]
-  savedViews   SavedView[]
-  apiKeys      ApiKey[]
+  companies   Company[]
+  memberships Membership[]
+  roles       Role[]
+  invitations Invitation[]
+  auditLogs   AuditLog[]
+  sequences   NumberSequence[]
+  attachments Attachment[]
+  savedViews  SavedView[]
+  apiKeys     ApiKey[]
 
   @@map("tenant")
 }
@@ -42,8 +42,8 @@ model Tenant {
 /// (confirmed by both Odoo and NetSuite in Stage 1 research).
 /// Documents belong to a Company, not directly to a Tenant.
 model Company {
-  id           String   @id @default(uuid()) @db.Uuid
-  tenantId     String   @db.Uuid
+  id           String  @id @default(uuid()) @db.Uuid
+  tenantId     String  @db.Uuid
   name         String
   legalName    String?
   /// Overrides the tenant country when a subsidiary files elsewhere.
@@ -58,12 +58,12 @@ model Company {
   region       String?
   postalCode   String?
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  createdBy    String?  @db.Uuid
-  updatedBy    String?  @db.Uuid
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  createdBy    String?   @db.Uuid
+  updatedBy    String?   @db.Uuid
   deletedAt    DateTime?
-  customFields Json     @default("{}")
+  customFields Json      @default("{}")
 
   tenant    Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   sequences NumberSequence[]
@@ -149,17 +149,17 @@ model VerificationToken {
 /// A user may hold SEVERAL roles; permissions are UNIONED, never
 /// intersected (matching Odoo, confirmed in Stage 1 research).
 model Membership {
-  id       String @id @default(uuid()) @db.Uuid
-  tenantId String @db.Uuid
-  userId   String @db.Uuid
+  id       String  @id @default(uuid()) @db.Uuid
+  tenantId String  @db.Uuid
+  userId   String  @db.Uuid
   /// Tenant owner: cannot be removed, bypasses record scope.
   isOwner  Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   roles  MembershipRole[]
 
   @@unique([tenantId, userId])
@@ -168,9 +168,9 @@ model Membership {
 }
 
 model Role {
-  id       String @id @default(uuid()) @db.Uuid
-  tenantId String @db.Uuid
-  name     String
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @db.Uuid
+  name        String
   description String?
   /// Layer 2: `module:resource:action` strings, e.g. "sales:order:create".
   permissions String[]
@@ -179,12 +179,12 @@ model Role {
   /// e.g. "own_records" | "own_warehouse"
   recordScope String?
   /// Built-in roles cannot be deleted.
-  isSystem    Boolean @default(false)
+  isSystem    Boolean  @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenant  Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant  Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   members MembershipRole[]
 
   @@unique([tenantId, name])
@@ -204,12 +204,12 @@ model MembershipRole {
 }
 
 model Invitation {
-  id        String   @id @default(uuid()) @db.Uuid
-  tenantId  String   @db.Uuid
-  email     String
-  roleIds   String[]
-  token     String   @unique
-  expiresAt DateTime
+  id         String    @id @default(uuid()) @db.Uuid
+  tenantId   String    @db.Uuid
+  email      String
+  roleIds    String[]
+  token      String    @unique
+  expiresAt  DateTime
   acceptedAt DateTime?
 
   createdAt DateTime @default(now())
@@ -294,8 +294,8 @@ model NumberSequence {
 }
 
 model Attachment {
-  id         String   @id @default(uuid()) @db.Uuid
-  tenantId   String   @db.Uuid
+  id         String @id @default(uuid()) @db.Uuid
+  tenantId   String @db.Uuid
   entityType String
   entityId   String
   fileName   String

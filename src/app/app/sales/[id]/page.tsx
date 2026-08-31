@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { getContext } from "@/server/context";
 import { getSalesOrder } from "@/server/sales/orders";
 import { getAuditTrail } from "@/server/core/audit";
+import { getInvoiceableOrderLines } from "@/server/invoicing/options";
 import { SalesOrderView } from "./sales-order-view";
 
 export default async function SalesOrderPage({ params }: PageProps<"/app/sales/[id]">) {
@@ -12,7 +13,10 @@ export default async function SalesOrderPage({ params }: PageProps<"/app/sales/[
   const order = await getSalesOrder(ctx, id);
   if (!order) notFound();
 
-  const audit = await getAuditTrail(ctx, "SalesOrder", order.id);
+  const [audit, invoiceableLines] = await Promise.all([
+    getAuditTrail(ctx, "SalesOrder", order.id),
+    getInvoiceableOrderLines(ctx, order.id),
+  ]);
 
-  return <SalesOrderView order={order} audit={audit} />;
+  return <SalesOrderView order={order} audit={audit} invoiceableLines={invoiceableLines} />;
 }

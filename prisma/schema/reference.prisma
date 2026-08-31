@@ -5,17 +5,17 @@
 // ============================================================
 
 model Country {
-  code        String  @id @db.Char(2)
-  name        String
+  code             String  @id @db.Char(2)
+  name             String
   /// BCP 47 locale. en-IN is what produces lakh/crore grouping.
-  locale      String
-  currency    String  @db.Char(3)
-  taxRegime   String
-  taxLabel    String
-  taxIdLabel  String
-  regionLabel String
+  locale           String
+  currency         String  @db.Char(3)
+  taxRegime        String
+  taxLabel         String
+  taxIdLabel       String
+  regionLabel      String
   pricesIncludeTax Boolean @default(false)
-  timeZone    String
+  timeZone         String
 
   @@map("country")
 }
@@ -32,11 +32,11 @@ model Currency {
 }
 
 model ExchangeRate {
-  id       String   @id @default(uuid()) @db.Uuid
-  from     String   @db.Char(3)
-  to       String   @db.Char(3)
-  rate     Decimal  @db.Decimal(19, 8)
-  asOf     DateTime @db.Date
+  id   String   @id @default(uuid()) @db.Uuid
+  from String   @db.Char(3)
+  to   String   @db.Char(3)
+  rate Decimal  @db.Decimal(19, 8)
+  asOf DateTime @db.Date
 
   @@unique([from, to, asOf])
   @@index([asOf])

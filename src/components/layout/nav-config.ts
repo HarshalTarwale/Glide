@@ -50,7 +50,8 @@ export const NAV: NavGroup[] = [
     label: "Finance",
     items: [
       { label: "Invoices", href: "/app/invoices", icon: Receipt, permission: "invoicing:invoice:read" },
-      { label: "Payments", href: "/app/payments", icon: Wallet, soon: true },
+      { label: "Payments", href: "/app/payments", icon: Wallet, permission: "invoicing:payment:read" },
+      { label: "AR Aging", href: "/app/invoices/aging", icon: FileText, permission: "invoicing:invoice:read" },
     ],
   },
   {

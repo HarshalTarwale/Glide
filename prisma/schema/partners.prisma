@@ -20,24 +20,24 @@ model Partner {
   kind     PartnerKind @default(company)
 
   /// Short human code, e.g. "ACME". Unique per tenant, used in search.
-  code        String?
-  name        String
+  code     String?
+  name     String
   /// Sub-contacts point at their employer.
-  parentId    String? @db.Uuid
+  parentId String? @db.Uuid
 
   isCustomer Boolean @default(false)
   isSupplier Boolean @default(false)
 
-  email String?
-  phone String?
+  email   String?
+  phone   String?
   website String?
 
   /// Defaults inherited onto documents; overridable per document.
-  currency   String? @db.Char(3)
-  priceListId String? @db.Uuid
+  currency        String?  @db.Char(3)
+  priceListId     String?  @db.Uuid
   /// Payment terms in days. 0 = due on receipt.
-  paymentTermDays Int @default(0)
-  creditLimit Decimal? @db.Decimal(19, 4)
+  paymentTermDays Int      @default(0)
+  creditLimit     Decimal? @db.Decimal(19, 4)
 
   notes String?
 
@@ -48,12 +48,14 @@ model Partner {
   deletedAt    DateTime?
   customFields Json      @default("{}")
 
-  parent    Partner?         @relation("PartnerHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
-  children  Partner[]        @relation("PartnerHierarchy")
-  priceList PriceList?       @relation(fields: [priceListId], references: [id], onDelete: SetNull)
+  parent      Partner?         @relation("PartnerHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children    Partner[]        @relation("PartnerHierarchy")
+  priceList   PriceList?       @relation(fields: [priceListId], references: [id], onDelete: SetNull)
   addresses   PartnerAddress[]
   taxInfo     PartnerTaxInfo[]
   salesOrders SalesOrder[]
+  invoices    Invoice[]
+  payments    Payment[]
 
   @@unique([tenantId, code])
   @@index([tenantId, name])
@@ -103,15 +105,15 @@ model PartnerTaxInfo {
   tenantId  String @db.Uuid
   partnerId String @db.Uuid
 
-  country String  @db.Char(2)
+  country              String  @db.Char(2)
   /// The registration number itself.
-  taxId   String
+  taxId                String
   /// India: the state this GSTIN is registered in.
-  region  String?
+  region               String?
   /// Registered businesses charge/reclaim tax; unregistered ones may not.
-  isRegistered Boolean @default(true)
+  isRegistered         Boolean @default(true)
   /// EU/UK B2B cross-border reverse charge applies.
-  reverseCharge Boolean @default(false)
+  reverseCharge        Boolean @default(false)
   /// US: buyer holds a resale/exemption certificate.
   exemptionCertificate String?
 

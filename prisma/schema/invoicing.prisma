@@ -1,0 +1,242 @@
+// ============================================================
+// INVOICING — Invoice → InvoiceLine, CreditNote, Payment → PaymentAllocation.
+//
+// This is P4, the end of v1 (docs/roadmap.md). Two rules carried over
+// directly from Sales (P3) and Inventory (P2), because they are the same
+// rule applied to a new document:
+//
+//   1. `Invoice.status` stores only the two facts derivation cannot see --
+//      draft and cancelled -- exactly like SalesOrder.status. Everything
+//      else (posted / partially_paid / paid) is DERIVED from
+//      PaymentAllocation and recomputed into the same column on every
+//      mutation, never set directly. See src/lib/invoicing/invoice-status.ts.
+//   2. A posted invoice is immutable. There is no "edit a posted invoice"
+//      code path anywhere in the service layer -- a correction is a new
+//      CreditNote, the same way a stock correction is a new StockMove
+//      rather than an edit to an old one.
+// ============================================================
+
+enum InvoiceStatus {
+  draft
+  posted
+  partially_paid
+  paid
+  cancelled
+}
+
+enum PaymentMethod {
+  bank_transfer
+  card
+  cash
+  cheque
+  other
+}
+
+model Invoice {
+  id        String @id @default(uuid()) @db.Uuid
+  tenantId  String @db.Uuid
+  companyId String @db.Uuid
+
+  number String
+
+  partnerId String @db.Uuid
+  currency  String @db.Char(3)
+
+  /// Nullable: an invoice may be raised standalone, not only from an order.
+  salesOrderId String? @db.Uuid
+
+  status InvoiceStatus @default(draft)
+
+  invoiceDate DateTime  @default(now()) @db.Date
+  dueDate     DateTime? @db.Date
+  /// Set once, the moment status leaves draft. Never cleared, never reset --
+  /// this timestamp IS the immutability boundary the rest of the service
+  /// layer checks against.
+  postedAt    DateTime?
+
+  /// Cached from lines, recomputed on every line change -- same discipline
+  /// as SalesOrder.subtotal/taxTotal/total.
+  subtotal   Decimal @default(0) @db.Decimal(19, 4)
+  taxTotal   Decimal @default(0) @db.Decimal(19, 4)
+  total      Decimal @default(0) @db.Decimal(19, 4)
+  /// Cached from PaymentAllocation, recomputed on every allocation change --
+  /// this is literally what status is derived FROM.
+  amountPaid Decimal @default(0) @db.Decimal(19, 4)
+
+  /// The tax engine's per-jurisdiction breakdown (e.g. "CGST 9%" / "SGST 9%"),
+  /// frozen the moment this invoice posts -- architecture.md §5.5: "stored
+  /// on the posted document so it never recalculates differently later."
+  /// Null while draft, where the breakdown is legitimately still live
+  /// (recomputed on every line edit, same as subtotal/taxTotal above).
+  taxBreakdown Json?
+
+  notes String?
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  createdBy    String?   @db.Uuid
+  updatedBy    String?   @db.Uuid
+  deletedAt    DateTime?
+  customFields Json      @default("{}")
+
+  partner     Partner             @relation(fields: [partnerId], references: [id])
+  salesOrder  SalesOrder?         @relation(fields: [salesOrderId], references: [id], onDelete: SetNull)
+  lines       InvoiceLine[]
+  creditNotes CreditNote[]
+  allocations PaymentAllocation[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status])
+  @@index([tenantId, partnerId])
+  @@index([tenantId, salesOrderId])
+  @@map("invoice")
+}
+
+model InvoiceLine {
+  id        String @id @default(uuid()) @db.Uuid
+  tenantId  String @db.Uuid
+  invoiceId String @db.Uuid
+
+  sequence Int
+
+  /// Nullable: a standalone invoice line has no order line behind it.
+  salesOrderLineId String? @db.Uuid
+
+  productId   String @db.Uuid
+  /// Snapshot, same reasoning as SalesOrderLine.description: an invoice
+  /// must keep reading the way it did on the day it was issued.
+  description String
+  uomId       String @db.Uuid
+
+  quantity    Decimal @db.Decimal(19, 6)
+  unitPrice   Decimal @db.Decimal(19, 4)
+  discountPct Decimal @default(0) @db.Decimal(9, 4)
+
+  taxCategoryId String? @db.Uuid
+
+  subtotal  Decimal @db.Decimal(19, 4)
+  taxAmount Decimal @default(0) @db.Decimal(19, 4)
+  total     Decimal @db.Decimal(19, 4)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  invoice         Invoice          @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  salesOrderLine  SalesOrderLine?  @relation(fields: [salesOrderLineId], references: [id])
+  product         Product          @relation(fields: [productId], references: [id])
+  uom             UnitOfMeasure    @relation(fields: [uomId], references: [id])
+  taxCategory     TaxCategory?     @relation(fields: [taxCategoryId], references: [id], onDelete: SetNull)
+  creditNoteLines CreditNoteLine[]
+
+  @@index([tenantId, invoiceId])
+  @@map("invoice_line")
+}
+
+/// The ONLY mechanism for correcting a posted invoice -- created already
+/// final (no draft state of its own), the same way P3's Delivery is created
+/// already `done`. Reversing a reversal is just another credit note; nothing
+/// here ever mutates an existing row.
+model CreditNote {
+  id        String @id @default(uuid()) @db.Uuid
+  tenantId  String @db.Uuid
+  companyId String @db.Uuid
+  invoiceId String @db.Uuid
+
+  number String
+
+  creditNoteDate DateTime @default(now()) @db.Date
+  reason         String
+
+  subtotal Decimal @db.Decimal(19, 4)
+  taxTotal Decimal @db.Decimal(19, 4)
+  total    Decimal @db.Decimal(19, 4)
+
+  createdAt DateTime @default(now())
+  createdBy String?  @db.Uuid
+
+  invoice Invoice          @relation(fields: [invoiceId], references: [id])
+  lines   CreditNoteLine[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, invoiceId])
+  @@map("credit_note")
+}
+
+model CreditNoteLine {
+  id            String @id @default(uuid()) @db.Uuid
+  tenantId      String @db.Uuid
+  creditNoteId  String @db.Uuid
+  /// Which invoice line this credits -- required, since a credit note only
+  /// ever corrects something that was actually billed.
+  invoiceLineId String @db.Uuid
+
+  description String
+  quantity    Decimal @db.Decimal(19, 6)
+  unitPrice   Decimal @db.Decimal(19, 4)
+
+  subtotal  Decimal @db.Decimal(19, 4)
+  taxAmount Decimal @default(0) @db.Decimal(19, 4)
+  total     Decimal @db.Decimal(19, 4)
+
+  creditNote  CreditNote  @relation(fields: [creditNoteId], references: [id], onDelete: Cascade)
+  invoiceLine InvoiceLine @relation(fields: [invoiceLineId], references: [id])
+
+  @@index([tenantId, creditNoteId])
+  @@map("credit_note_line")
+}
+
+/// A single receipt of money from a partner. May be applied across several
+/// invoices (PaymentAllocation) -- the Stage 1 "partial fulfilment is
+/// normal, not an edge case" finding, applied to cash instead of stock.
+model Payment {
+  id        String @id @default(uuid()) @db.Uuid
+  tenantId  String @db.Uuid
+  companyId String @db.Uuid
+  partnerId String @db.Uuid
+
+  number String
+
+  paymentDate DateTime      @default(now()) @db.Date
+  method      PaymentMethod @default(bank_transfer)
+  reference   String?
+
+  amount            Decimal @db.Decimal(19, 4)
+  currency          String  @db.Char(3)
+  /// Cached: amount minus the sum of this payment's allocations. A payment
+  /// can arrive before the invoice it will eventually settle, or exceed any
+  /// single invoice -- this is what lets it sit partially unapplied.
+  unallocatedAmount Decimal @db.Decimal(19, 4)
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  createdBy String?  @db.Uuid
+
+  partner     Partner             @relation(fields: [partnerId], references: [id])
+  allocations PaymentAllocation[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, partnerId])
+  @@map("payment")
+}
+
+/// The many-to-many join the roadmap's own acceptance bar names explicitly:
+/// "one payment can settle parts of three invoices." The reverse is equally
+/// true -- one invoice can be settled by several payments over time.
+model PaymentAllocation {
+  id        String @id @default(uuid()) @db.Uuid
+  tenantId  String @db.Uuid
+  paymentId String @db.Uuid
+  invoiceId String @db.Uuid
+
+  amount Decimal @db.Decimal(19, 4)
+
+  createdAt DateTime @default(now())
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+
+  @@index([tenantId, paymentId])
+  @@index([tenantId, invoiceId])
+  @@map("payment_allocation")
+}

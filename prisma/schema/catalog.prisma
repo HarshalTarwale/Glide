@@ -41,24 +41,25 @@ model ProductCategory {
 /// within the same category (weight, length, unit...), so 1 box -> 12 pcs
 /// is a factor, not a special case.
 model UnitOfMeasure {
-  id       String @id @default(uuid()) @db.Uuid
-  tenantId String @db.Uuid
-  name     String
-  code     String
+  id          String  @id @default(uuid()) @db.Uuid
+  tenantId    String  @db.Uuid
+  name        String
+  code        String
   /// Grouping: "unit" | "weight" | "volume" | "length" | "time"
-  category String @default("unit")
+  category    String  @default("unit")
   /// Multiplier to the category's reference unit. 1 for the reference itself.
-  factor   Decimal @db.Decimal(19, 6) @default(1)
+  factor      Decimal @default(1) @db.Decimal(19, 6)
   isReference Boolean @default(false)
   /// Decimal places allowed when entering a quantity in this unit.
-  precision Int @default(2)
+  precision   Int     @default(2)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  products        Product[]
-  purchaseProducts Product[] @relation("PurchaseUom")
+  products         Product[]
+  purchaseProducts Product[]        @relation("PurchaseUom")
   salesOrderLines  SalesOrderLine[]
+  invoiceLines     InvoiceLine[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -81,6 +82,7 @@ model TaxCategory {
   products        Product[]
   rates           TaxRate[]
   salesOrderLines SalesOrderLine[]
+  invoiceLines    InvoiceLine[]
 
   @@unique([tenantId, key])
   @@index([tenantId])
@@ -94,16 +96,16 @@ model TaxRate {
   id       String @id @default(uuid()) @db.Uuid
   tenantId String @db.Uuid
 
-  name    String
-  country String  @db.Char(2)
+  name          String
+  country       String  @db.Char(2)
   /// State / county / city code. Null = applies country-wide.
-  region  String?
+  region        String?
   /// Percentage, e.g. 18 for 18%.
-  rate    Decimal @db.Decimal(9, 4)
+  rate          Decimal @db.Decimal(9, 4)
   taxCategoryId String? @db.Uuid
   /// "state" | "county" | "city" | "national" — used to order a US stack.
-  level   String  @default("national")
-  isActive Boolean @default(true)
+  level         String  @default("national")
+  isActive      Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -124,23 +126,23 @@ model Product {
   description String?
   barcode     String?
 
-  categoryId String? @db.Uuid
-  uomId      String  @db.Uuid
+  categoryId    String? @db.Uuid
+  uomId         String  @db.Uuid
   /// Purchasing may use a different unit than selling (buy boxes, sell pieces).
   purchaseUomId String? @db.Uuid
 
   /// Default list price, in the tenant's base currency. Price lists override.
-  salesPrice Decimal @db.Decimal(19, 4) @default(0)
+  salesPrice Decimal @default(0) @db.Decimal(19, 4)
   /// Standard cost; AVCO valuation in P2 maintains the moving average.
-  costPrice  Decimal @db.Decimal(19, 4) @default(0)
+  costPrice  Decimal @default(0) @db.Decimal(19, 4)
 
   taxCategoryId String? @db.Uuid
   /// India HSN / SAC. Required on GST invoices above a turnover threshold.
-  hsnCode String?
+  hsnCode       String?
 
-  tracking TrackingMode @default(none)
+  tracking     TrackingMode @default(none)
   /// Stock level that triggers a reorder suggestion (P2).
-  reorderPoint Decimal? @db.Decimal(19, 6)
+  reorderPoint Decimal?     @db.Decimal(19, 6)
 
   isSellable    Boolean @default(true)
   isPurchasable Boolean @default(true)
@@ -153,11 +155,11 @@ model Product {
   deletedAt    DateTime?
   customFields Json      @default("{}")
 
-  category    ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  uom         UnitOfMeasure    @relation(fields: [uomId], references: [id])
-  purchaseUom UnitOfMeasure?   @relation("PurchaseUom", fields: [purchaseUomId], references: [id], onDelete: SetNull)
-  taxCategory TaxCategory?     @relation(fields: [taxCategoryId], references: [id], onDelete: SetNull)
-  priceItems  PriceListItem[]
+  category        ProductCategory?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  uom             UnitOfMeasure         @relation(fields: [uomId], references: [id])
+  purchaseUom     UnitOfMeasure?        @relation("PurchaseUom", fields: [purchaseUomId], references: [id], onDelete: SetNull)
+  taxCategory     TaxCategory?          @relation(fields: [taxCategoryId], references: [id], onDelete: SetNull)
+  priceItems      PriceListItem[]
   // Inventory (P2) -- see prisma/schema/inventory.prisma
   stockMoves      StockMove[]
   stockQuants     StockQuant[]
@@ -166,6 +168,7 @@ model Product {
   reorderRules    ReorderRule[]
   salesOrderLines SalesOrderLine[]
   deliveryLines   DeliveryLine[]
+  invoiceLines    InvoiceLine[]
 
   @@unique([tenantId, sku])
   @@index([tenantId, name])
@@ -174,12 +177,12 @@ model Product {
 }
 
 model PriceList {
-  id       String @id @default(uuid()) @db.Uuid
-  tenantId String @db.Uuid
-  name     String
-  currency String @db.Char(3)
-  isDefault Boolean @default(false)
-  isActive  Boolean @default(true)
+  id        String    @id @default(uuid()) @db.Uuid
+  tenantId  String    @db.Uuid
+  name      String
+  currency  String    @db.Char(3)
+  isDefault Boolean   @default(false)
+  isActive  Boolean   @default(true)
   validFrom DateTime? @db.Date
   validTo   DateTime? @db.Date
 
@@ -203,7 +206,7 @@ model PriceListItem {
   productId   String @db.Uuid
 
   /// Volume pricing: this price applies at or above this quantity.
-  minQty Decimal @db.Decimal(19, 6) @default(0)
+  minQty Decimal @default(0) @db.Decimal(19, 6)
   price  Decimal @db.Decimal(19, 4)
 
   createdAt DateTime @default(now())

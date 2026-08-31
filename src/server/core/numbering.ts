@@ -1,5 +1,6 @@
 import "server-only";
 
+import { randomUUID } from "node:crypto";
 import type { TenantTransaction } from "@/lib/db/tenant-client";
 
 /**
@@ -11,11 +12,24 @@ import type { TenantTransaction } from "@/lib/db/tenant-client";
  * caller's existing transaction, so two concurrent order creations cannot
  * both read `next = 42` and both mint "SO-0042" -- the second writer blocks
  * on the row lock implicit in the UPDATE until the first commits.
+ *
+ * The row-creation step below is raw SQL with `ON CONFLICT DO NOTHING` for
+ * the same atomicity reason, NOT Prisma's `.upsert()`: inside an existing
+ * interactive transaction, upsert is not guaranteed to compile to a single
+ * atomic statement, and two transactions concurrently creating a company's
+ * FIRST document of a fiscal year (e.g. two invoices raised in the same
+ * moment) can both see "no row yet" and both attempt the INSERT, one of
+ * them failing on the unique constraint instead of proceeding. This was
+ * caught by tests/invoicing.test.ts creating three invoices concurrently --
+ * a real scenario (two users, same instant), not a test artifact.
  */
 
 const PREFIX: Record<string, string> = {
   sales_order: "SO",
   delivery: "DO",
+  invoice: "INV",
+  credit_note: "CN",
+  payment: "PAY",
 };
 
 export async function nextDocumentNumber(
@@ -25,11 +39,11 @@ export async function nextDocumentNumber(
   docType: string,
   fiscalYear: number = new Date().getFullYear()
 ): Promise<string> {
-  await tx.numberSequence.upsert({
-    where: { companyId_docType_fiscalYear: { companyId, docType, fiscalYear } },
-    update: {},
-    create: { tenantId, companyId, docType, fiscalYear, prefix: PREFIX[docType] ?? docType.toUpperCase(), next: 1 },
-  });
+  await tx.$executeRaw`
+    INSERT INTO number_sequence ("id", "tenantId", "companyId", "docType", "fiscalYear", "prefix", "padding", "next", "createdAt", "updatedAt")
+    VALUES (${randomUUID()}::uuid, ${tenantId}::uuid, ${companyId}::uuid, ${docType}, ${fiscalYear}, ${PREFIX[docType] ?? docType.toUpperCase()}, 4, 1, now(), now())
+    ON CONFLICT ("companyId", "docType", "fiscalYear") DO NOTHING
+  `;
 
   // Prisma has no UPDATE ... RETURNING helper, so this is raw SQL for the
   // atomicity, not for expressiveness: increment and read the PRE-increment

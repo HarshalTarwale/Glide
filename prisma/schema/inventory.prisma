@@ -29,9 +29,9 @@ enum StockMoveType {
 /// a serial is modelled as a lot whose moves are always quantity 1, enforced
 /// in the service layer rather than by a second model.
 model Lot {
-  id        String   @id @default(uuid()) @db.Uuid
-  tenantId  String   @db.Uuid
-  productId String   @db.Uuid
+  id        String    @id @default(uuid()) @db.Uuid
+  tenantId  String    @db.Uuid
+  productId String    @db.Uuid
   code      String
   expiresAt DateTime? @db.Date
   notes     String?
@@ -39,7 +39,7 @@ model Lot {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  product Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
   moves   StockMove[]
   quants  StockQuant[]
 
@@ -70,7 +70,7 @@ model StockMove {
   /// deliveries and adjustment-out -- see src/lib/inventory/avco.ts.
   unitCost Decimal @db.Decimal(19, 4)
 
-  reference String?
+  reference  String?
   /// Freeform now; becomes a real FK to SalesOrder/Delivery/PurchaseOrder in
   /// P3+ once those documents exist. Kept as a string pair on purpose so
   /// this model does not need a migration when that day comes.
@@ -83,10 +83,10 @@ model StockMove {
   createdAt DateTime @default(now())
   createdBy String?  @db.Uuid
 
-  product      Product  @relation(fields: [productId], references: [id])
-  fromLocation Location @relation("MoveFrom", fields: [fromLocationId], references: [id])
-  toLocation   Location @relation("MoveTo", fields: [toLocationId], references: [id])
-  lot          Lot?     @relation(fields: [lotId], references: [id])
+  product      Product              @relation(fields: [productId], references: [id])
+  fromLocation Location             @relation("MoveFrom", fields: [fromLocationId], references: [id])
+  toLocation   Location             @relation("MoveTo", fields: [toLocationId], references: [id])
+  lot          Lot?                 @relation(fields: [lotId], references: [id])
   valuation    StockValuationLayer?
   deliveryLine DeliveryLine?
 
@@ -107,7 +107,7 @@ model StockQuant {
   locationId String  @db.Uuid
   lotId      String? @db.Uuid
 
-  quantity Decimal @db.Decimal(19, 6) @default(0)
+  quantity Decimal @default(0) @db.Decimal(19, 6)
 
   updatedAt DateTime @updatedAt
 
@@ -137,10 +137,10 @@ model StockQuant {
 /// cache: tests/stock-ledger.test.ts replays every layer for a product from
 /// zero and asserts the replay matches what is stored here.
 model StockValuationLayer {
-  id          String  @id @default(uuid()) @db.Uuid
-  tenantId    String  @db.Uuid
-  productId   String  @db.Uuid
-  stockMoveId String  @unique @db.Uuid
+  id          String @id @default(uuid()) @db.Uuid
+  tenantId    String @db.Uuid
+  productId   String @db.Uuid
+  stockMoveId String @unique @db.Uuid
 
   /// Signed: positive for value entering the company (receipt, positive
   /// adjustment), negative for value leaving it (delivery, negative
@@ -169,12 +169,12 @@ model StockValuationLayer {
 /// warehouse low-stock report uses when it exists; Product.reorderPoint
 /// remains the fallback when no rule is configured for a warehouse.
 model ReorderRule {
-  id          String  @id @default(uuid()) @db.Uuid
-  tenantId    String  @db.Uuid
-  productId   String  @db.Uuid
-  warehouseId String  @db.Uuid
+  id          String @id @default(uuid()) @db.Uuid
+  tenantId    String @db.Uuid
+  productId   String @db.Uuid
+  warehouseId String @db.Uuid
 
-  minQty Decimal @db.Decimal(19, 6)
+  minQty Decimal  @db.Decimal(19, 6)
   /// Suggested reorder-up-to quantity. Nullable: a tenant may only want the
   /// low-stock flag, not a purchasing suggestion, yet.
   maxQty Decimal? @db.Decimal(19, 6)

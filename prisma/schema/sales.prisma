@@ -63,9 +63,9 @@ model SalesOrder {
 
   /// Cached from lines, recomputed on every line change -- same derivation
   /// discipline as `status`. Never written to directly by a form.
-  subtotal Decimal @db.Decimal(19, 4) @default(0)
-  taxTotal Decimal @db.Decimal(19, 4) @default(0)
-  total    Decimal @db.Decimal(19, 4) @default(0)
+  subtotal Decimal @default(0) @db.Decimal(19, 4)
+  taxTotal Decimal @default(0) @db.Decimal(19, 4)
+  total    Decimal @default(0) @db.Decimal(19, 4)
 
   notes String?
 
@@ -81,6 +81,7 @@ model SalesOrder {
   priceList  PriceList?       @relation(fields: [priceListId], references: [id], onDelete: SetNull)
   lines      SalesOrderLine[]
   deliveries Delivery[]
+  invoices   Invoice[]
 
   @@unique([tenantId, number])
   @@index([tenantId, status])
@@ -97,40 +98,41 @@ model SalesOrderLine {
   /// lines in the editor changes this, not the row's identity.
   sequence Int
 
-  productId String @db.Uuid
+  productId   String @db.Uuid
   /// Snapshot of the product name at order time. A product can be renamed
   /// or archived years later; the order must still read the way it did on
   /// the day it was placed.
   description String
 
-  uomId    String  @db.Uuid
+  uomId        String  @db.Uuid
   qtyOrdered   Decimal @db.Decimal(19, 6)
   /// Rolled up from DeliveryLine on every delivery -- never set directly.
-  qtyDelivered Decimal @db.Decimal(19, 6) @default(0)
+  qtyDelivered Decimal @default(0) @db.Decimal(19, 6)
   /// Rolled up from invoice lines once P4 exists; 0 until then.
-  qtyInvoiced  Decimal @db.Decimal(19, 6) @default(0)
+  qtyInvoiced  Decimal @default(0) @db.Decimal(19, 6)
 
   /// Snapshot from the price list (or Product.salesPrice) at the moment the
   /// line was added -- a later price change must never reshape a placed
   /// order.
   unitPrice   Decimal @db.Decimal(19, 4)
-  discountPct Decimal @db.Decimal(9, 4) @default(0)
+  discountPct Decimal @default(0) @db.Decimal(9, 4)
 
   taxCategoryId String? @db.Uuid
 
   /// Cached, derived from qty/price/discount/tax -- see order-status.ts.
   subtotal  Decimal @db.Decimal(19, 4)
-  taxAmount Decimal @db.Decimal(19, 4) @default(0)
+  taxAmount Decimal @default(0) @db.Decimal(19, 4)
   total     Decimal @db.Decimal(19, 4)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  salesOrder    SalesOrder      @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
-  product       Product         @relation(fields: [productId], references: [id])
-  uom           UnitOfMeasure   @relation(fields: [uomId], references: [id])
-  taxCategory   TaxCategory?    @relation(fields: [taxCategoryId], references: [id], onDelete: SetNull)
+  salesOrder    SalesOrder     @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  product       Product        @relation(fields: [productId], references: [id])
+  uom           UnitOfMeasure  @relation(fields: [uomId], references: [id])
+  taxCategory   TaxCategory?   @relation(fields: [taxCategoryId], references: [id], onDelete: SetNull)
   deliveryLines DeliveryLine[]
+  invoiceLines  InvoiceLine[]
 
   @@index([tenantId, salesOrderId])
   @@map("sales_order_line")
@@ -167,9 +169,9 @@ model Delivery {
 /// StockMove (via deliverStock in P2's stock service); a SalesOrderLine can
 /// be spread across many DeliveryLines as partial shipments accumulate.
 model DeliveryLine {
-  id           String @id @default(uuid()) @db.Uuid
-  tenantId     String @db.Uuid
-  deliveryId   String @db.Uuid
+  id               String @id @default(uuid()) @db.Uuid
+  tenantId         String @db.Uuid
+  deliveryId       String @db.Uuid
   salesOrderLineId String @db.Uuid
 
   productId   String  @db.Uuid

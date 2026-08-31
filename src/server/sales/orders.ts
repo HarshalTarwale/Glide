@@ -74,6 +74,7 @@ export interface SalesOrderDTO {
   lines: SalesOrderLineDTO[];
   deliveredQty: number;
   orderedQty: number;
+  invoicedQty: number;
 }
 
 export interface SalesOrderListItemDTO {
@@ -385,6 +386,7 @@ export async function getSalesOrder(ctx: RequestContext, id: string): Promise<Sa
       taxComponents: taxResult.components.map((c) => ({ label: c.label, rate: c.rate, amount: c.amount })),
       orderedQty: sumField(order.lines, (l) => l.qtyOrdered),
       deliveredQty: sumField(order.lines, (l) => l.qtyDelivered),
+      invoicedQty: sumField(order.lines, (l) => l.qtyInvoiced),
       lines: order.lines.map((l) => ({
         id: l.id,
         sequence: l.sequence,

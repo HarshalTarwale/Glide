@@ -17,7 +17,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PermissionGate, useHasPermission } from "@/components/layout/session-context";
 import type { SalesOrderDTO } from "@/server/sales/orders";
 import type { AuditEntryDTO } from "@/server/core/audit";
+import type { InvoiceableOrderLineDTO } from "@/server/invoicing/options";
 import { DeliverDialog } from "./deliver-dialog";
+import { InvoiceDialog } from "./invoice-dialog";
 import { confirmSalesOrderAction, cancelSalesOrderAction } from "../actions";
 
 const STATUS_TONE: Record<string, "neutral" | "info" | "warning" | "accent" | "success" | "danger"> = {
@@ -45,12 +47,22 @@ const STEPS = [
   { id: "invoiced", label: "Invoiced" },
 ];
 
-export function SalesOrderView({ order, audit }: { order: SalesOrderDTO; audit: AuditEntryDTO[] }) {
+export function SalesOrderView({
+  order,
+  audit,
+  invoiceableLines,
+}: {
+  order: SalesOrderDTO;
+  audit: AuditEntryDTO[];
+  invoiceableLines: InvoiceableOrderLineDTO[];
+}) {
   const router = useRouter();
   const canWrite = useHasPermission("sales:order:write");
   const canConfirm = useHasPermission("sales:order:confirm");
   const canCancel = useHasPermission("sales:order:cancel");
+  const canInvoice = useHasPermission("invoicing:invoice:write");
   const [deliverOpen, setDeliverOpen] = React.useState(false);
+  const [invoiceOpen, setInvoiceOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
 
   async function handleConfirm() {
@@ -154,12 +166,14 @@ export function SalesOrderView({ order, audit }: { order: SalesOrderDTO; audit: 
                 ) : null}
               </PermissionGate>
 
-              {order.status === "delivered" ? (
-                <Button variant="secondary" size="md" disabled title="Invoicing arrives in P4">
-                  <Receipt />
-                  Create invoice
-                </Button>
-              ) : null}
+              <PermissionGate permission="invoicing:invoice:write">
+                {invoiceableLines.length > 0 ? (
+                  <Button variant="secondary" size="md" onClick={() => setInvoiceOpen(true)} disabled={!canInvoice}>
+                    <Receipt />
+                    Create invoice
+                  </Button>
+                ) : null}
+              </PermissionGate>
             </>
           }
         />
@@ -168,7 +182,7 @@ export function SalesOrderView({ order, audit }: { order: SalesOrderDTO; audit: 
         <SmartButtons
           items={[
             { label: "Delivered", value: `${order.deliveredQty} / ${order.orderedQty}`, href: "#delivery", icon: Truck },
-            { label: "Invoices", value: 0, href: "#invoicing", icon: Receipt },
+            { label: "Invoiced", value: `${order.invoicedQty} / ${order.orderedQty}`, href: "/app/invoices", icon: Receipt },
             { label: "Documents", value: 0, href: "#notes", icon: FileDown },
           ]}
         />
@@ -233,7 +247,9 @@ export function SalesOrderView({ order, audit }: { order: SalesOrderDTO; audit: 
             <Field label="Order total">
               <Money value={order.total} currency={order.currency} />
             </Field>
-            <Field label="Invoiced">Invoicing arrives in P4</Field>
+            <Field label="Invoiced">
+              {order.invoicedQty} / {order.orderedQty}
+            </Field>
           </FieldGrid>
         </TabsContent>
 
@@ -259,6 +275,13 @@ export function SalesOrderView({ order, audit }: { order: SalesOrderDTO; audit: 
         orderId={order.id}
         lines={order.lines}
         onSaved={handleDelivered}
+      />
+
+      <InvoiceDialog
+        open={invoiceOpen}
+        onOpenChange={setInvoiceOpen}
+        orderId={order.id}
+        lines={invoiceableLines}
       />
     </RecordShell>
   );
