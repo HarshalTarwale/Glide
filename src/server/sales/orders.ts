@@ -6,7 +6,7 @@ import { assertPermission, recordScopeWhere } from "@/lib/auth/permissions";
 import { compileQuery } from "@/lib/query/prisma-query";
 import type { RecordPage, RecordQuery } from "@/lib/query/record-query";
 import { computeTax } from "@/lib/tax";
-import type { TaxParty, TaxableLine } from "@/lib/tax";
+import type { TaxParty, TaxableLine, JurisdictionRate } from "@/lib/tax";
 import { deriveStatus, computeLineSubtotal, type LineQuantities } from "@/lib/sales/order-status";
 import { recordMove } from "@/server/inventory/stock";
 import { nextDocumentNumber } from "@/server/core/numbering";
@@ -157,6 +157,29 @@ async function resolveSellerParty(tx: TenantTransaction, companyId: string): Pro
   };
 }
 
+/**
+ * Tenant-configured jurisdiction rates, passed to every regime as
+ * TaxInput.settings.rates. This is the piece that was missing entirely:
+ * without it every US order silently computed zero tax (the regime has no
+ * statutory default to fall back to -- see sales-tax-us.ts's own scope
+ * note), and GST/VAT ignored any tenant-specific rate override even though
+ * both regimes support one. src/server/core/tax-rates.ts is where a tenant
+ * manages the rows this reads.
+ */
+async function resolveConfiguredRates(tx: TenantTransaction, tenantId: string): Promise<JurisdictionRate[]> {
+  const rows = await tx.taxRate.findMany({
+    where: { tenantId, isActive: true },
+    include: { taxCategory: { select: { key: true } } },
+  });
+  return rows.map((r) => ({
+    name: r.name,
+    rate: Number(r.rate.toString()),
+    level: r.level as JurisdictionRate["level"],
+    region: r.region ?? undefined,
+    category: (r.taxCategory?.key as JurisdictionRate["category"]) ?? undefined,
+  }));
+}
+
 async function resolveBuyerParty(tx: TenantTransaction, partnerId: string): Promise<TaxParty> {
   const [address, taxInfo] = await Promise.all([
     tx.partnerAddress.findFirst({ where: { partnerId, kind: "billing" }, orderBy: { isDefault: "desc" } }),
@@ -202,7 +225,8 @@ async function recomputeOrder(tx: TenantTransaction, tenantId: string, orderId: 
   // Per-line taxAmount is then resolved from the SAME call's per-line
   // components rather than a second, separately-rounded computation, so the
   // sum of line.taxAmount always equals order.taxTotal exactly.
-  const taxResult = computeTax({ lines: taxableLines, seller, buyer });
+  const configuredRates = await resolveConfiguredRates(tx, tenantId);
+  const taxResult = computeTax({ lines: taxableLines, seller, buyer, settings: { rates: configuredRates } });
   const totalSubtotal = [...lineSubtotals.values()].reduce((a, b) => a + b, 0);
 
   for (const line of order.lines) {
@@ -334,7 +358,8 @@ export async function getSalesOrder(ctx: RequestContext, id: string): Promise<Sa
       amount: Number(l.subtotal.toString()),
       category: (l.taxCategory?.key as TaxableLine["category"]) ?? "standard",
     }));
-    const taxResult = computeTax({ lines: taxableLines, seller, buyer });
+    const configuredRates = await resolveConfiguredRates(tx, ctx.tenantId);
+    const taxResult = computeTax({ lines: taxableLines, seller, buyer, settings: { rates: configuredRates } });
 
     const salesperson = order.salespersonId
       ? await tx.membership.findFirst({ where: { userId: order.salespersonId }, include: { user: true } })

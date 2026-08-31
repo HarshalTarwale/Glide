@@ -9,6 +9,11 @@ import { getCountry, DEFAULT_COUNTRY } from "@/lib/i18n/countries";
 import { SYSTEM_ROLES } from "@/lib/auth/permissions";
 import { TaxPreview } from "@/components/erp/tax-preview";
 import { resolveRegimeId } from "@/lib/tax";
+import { getCompany } from "@/server/core/company";
+import { listTaxRates } from "@/server/core/tax-rates";
+import { withTenant } from "@/lib/db/tenant-client";
+import { OrganisationSection } from "./organisation-section";
+import { TaxRatesSection } from "./tax-rates-section";
 
 export const metadata = { title: "Settings" };
 
@@ -17,40 +22,36 @@ export default async function SettingsPage() {
   const dbReady = isDatabaseConfigured();
   const pack = getCountry(ctx?.country ?? DEFAULT_COUNTRY);
 
+  const [company, taxRates, taxCategories] = ctx
+    ? await Promise.all([
+        getCompany(ctx),
+        listTaxRates(ctx),
+        withTenant(ctx.tenantId, (tx) =>
+          tx.taxCategory.findMany({ select: { id: true, key: true, name: true }, orderBy: { name: "asc" } })
+        ),
+      ])
+    : [null, [], []];
+
   return (
     <>
       <PageHeader
         title="Settings"
         crumbs={[{ label: "Setup" }, { label: "Settings" }]}
-        meta="Organisation, localization, roles and access."
+        meta="Organisation, localization, tax and access."
       />
 
       <div className="flex-1 overflow-auto px-6 py-6">
         <div className="grid gap-4 lg:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Organisation</CardTitle>
-              {ctx ? (
-                <Badge tone="success" dot>
-                  Live
-                </Badge>
-              ) : (
-                <Badge tone="warning" dot>
-                  Preview
-                </Badge>
-              )}
-            </CardHeader>
-            <CardBody>
-              <FieldGrid>
-                <Field label="Name">{ctx?.tenantName ?? "Northwind Traders"}</Field>
-                <Field label="Signed in as">{ctx?.userEmail ?? "—"}</Field>
-                <Field label="Role">{ctx?.isOwner ? "Owner" : ctx ? "Member" : "—"}</Field>
-                <Field label="Permissions granted">
-                  {ctx ? `${ctx.permissions.size}` : "—"}
-                </Field>
-              </FieldGrid>
-            </CardBody>
-          </Card>
+          <OrganisationSection
+            tenantName={ctx?.tenantName ?? "Northwind Traders"}
+            userEmail={ctx?.userEmail ?? "—"}
+            isOwner={ctx?.isOwner ?? false}
+            permissionCount={ctx ? ctx.permissions.size : null}
+            company={company}
+            regionLabel={pack.regionLabel}
+            taxIdLabel={pack.taxIdLabel}
+            live={Boolean(ctx)}
+          />
 
           <Card>
             <CardHeader>
@@ -63,7 +64,7 @@ export default async function SettingsPage() {
                 <Field label="Tax regime">
                   {pack.taxLabel} <span className="text-ink-subtle">({pack.taxRegime})</span>
                 </Field>
-                <Field label={pack.taxIdLabel}>—</Field>
+                <Field label={pack.taxIdLabel}>{company?.taxId ?? "—"}</Field>
                 <Field label="Number format">
                   <span className="tnum">
                     {new Intl.NumberFormat(pack.locale, {
@@ -86,12 +87,14 @@ export default async function SettingsPage() {
             </CardHeader>
             <CardBody>
               <p className="mb-3 text-xs text-ink-muted">
-                Computed by the same engine that will price every invoice. Switch
+                Computed by the same engine that prices every sales order. Switch
                 country in the top bar to see another regime.
               </p>
               <TaxPreview />
             </CardBody>
           </Card>
+
+          <TaxRatesSection rates={taxRates} taxCategories={taxCategories} defaultCountry={ctx?.country ?? DEFAULT_COUNTRY} live={Boolean(ctx)} />
 
           <Card className="lg:col-span-2">
             <CardHeader>
