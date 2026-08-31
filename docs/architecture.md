@@ -200,7 +200,7 @@ One pure function per regime, unit-tested against golden cases (confirmed testin
 | **UK VAT** | Standard/reduced/zero/exempt rate per product. Reverse charge for cross-border B2B. | Full for domestic; EU-post-Brexit edge cases (OSS-adjacent) deferred. |
 | **EU VAT** | Per-member-state rate, keyed off buyer country for B2C, reverse charge for B2B. | Rate table covers Germany + the 4 largest markets at launch; full 27-state table before EU GA. |
 | **UAE VAT** | Flat 5%, designated-zone exemption. | Full — genuinely the simplest of the five. |
-| **US sales tax** | State + county + city rate stack, origin/destination sourcing. | **Manually configured jurisdiction rates only.** Full nexus-aware automatic sourcing is its own product (this is what Avalara/TaxJar sell); a v1 tenant configures their own rate table. An adapter to a real tax API is a P6+ candidate, not a v1 blocker. |
+| **US sales tax** | State + county + city rate stack, origin/destination sourcing. | **Manually configured jurisdiction rates only** — now a real, working capability (`src/server/core/tax-rates.ts`, Settings → Tax rates), not just a documented scope line. Verified against live Neon: 6.25% state + 2% city configured for Texas correctly produces $8.25 tax on a $100 order. Full nexus-aware automatic sourcing is its own product (this is what Avalara/TaxJar sell); an adapter to a real tax API is a P6+ candidate, not a v1 blocker. |
 
 This scope boundary was stated in the master plan and is repeated here because it's the one place in the tax engine where "done" could silently mean two different things — flagging it explicitly rather than letting it be assumed.
 
