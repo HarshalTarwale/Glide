@@ -37,10 +37,10 @@ export function LevelsTab({ levels, live }: { levels: StockLevelDTO[]; live: boo
               <Quantity value={l.onHand} uom={l.uomCode} />
             </td>
             <td className="px-3 text-right">
-              <Money value={l.averageCost} className="text-ink-muted" />
+              {l.averageCost !== null ? <Money value={l.averageCost} className="text-ink-muted" /> : <span className="text-ink-subtle">—</span>}
             </td>
             <td className="px-3 text-right font-medium">
-              <Money value={l.value} />
+              {l.value !== null ? <Money value={l.value} /> : <span className="text-ink-subtle">—</span>}
             </td>
             <td className="px-3">
               {l.isLow ? (

@@ -4,6 +4,7 @@ import {
   PermissionError,
   SYSTEM_ROLES,
   assertPermission,
+  canSeeCost,
   recordScopeWhere,
   unionPermissions,
 } from "@/lib/auth/permissions";
@@ -73,5 +74,31 @@ describe("record scope (permission layer 3)", () => {
     expect(recordScopeWhere("own_warehouse", ctx, { warehouseField: "warehouseId" })).toEqual({
       warehouseId: { in: ["w1", "w2"] },
     });
+  });
+});
+
+describe("field visibility (permission layer 4)", () => {
+  it("grants cost visibility to a role holding inventory:product:write", () => {
+    expect(canSeeCost({ permissions: new Set(["inventory:product:write"]), isOwner: false })).toBe(true);
+  });
+
+  it("grants cost visibility to the tenant owner regardless of their permission set", () => {
+    expect(canSeeCost({ permissions: new Set(), isOwner: true })).toBe(true);
+  });
+
+  it("denies cost visibility to a role with only inventory:stock:read -- the Warehouse role's own shape", () => {
+    const warehouse = SYSTEM_ROLES.find((r) => r.name === "Warehouse")!;
+    expect(canSeeCost({ permissions: new Set(warehouse.permissions), isOwner: false })).toBe(false);
+  });
+
+  it("denies cost visibility to Sales Manager -- product:read only, not product:write, among today's seeded roles", () => {
+    const salesManager = SYSTEM_ROLES.find((r) => r.name === "Sales Manager")!;
+    expect(salesManager.permissions).not.toContain("inventory:product:write");
+    expect(canSeeCost({ permissions: new Set(salesManager.permissions), isOwner: false })).toBe(false);
+  });
+
+  it("grants cost visibility to Administrator, which holds every permission", () => {
+    const admin = SYSTEM_ROLES.find((r) => r.name === "Administrator")!;
+    expect(canSeeCost({ permissions: new Set(admin.permissions), isOwner: false })).toBe(true);
   });
 });

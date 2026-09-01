@@ -199,7 +199,13 @@ async function computeLiveTaxComponents(
 /* ------------------------------------------------------------------ */
 
 async function recomputeInvoice(tx: TenantTransaction, tenantId: string, invoiceId: string) {
-  const invoice = await tx.invoice.findUniqueOrThrow({ where: { id: invoiceId }, include: { lines: true } });
+  // taxCategory included (one JOIN) rather than looked up per line in the
+  // loop below -- see the identical fix and comment in sales/orders.ts's
+  // recomputeOrder, part of the P5 index/N+1 pass.
+  const invoice = await tx.invoice.findUniqueOrThrow({
+    where: { id: invoiceId },
+    include: { lines: { include: { taxCategory: { select: { key: true } } } } },
+  });
   const [seller, buyer] = await Promise.all([
     resolveSellerParty(tx, invoice.companyId),
     resolveBuyerParty(tx, invoice.partnerId),
@@ -216,9 +222,7 @@ async function recomputeInvoice(tx: TenantTransaction, tenantId: string, invoice
     });
     lineSubtotals.set(line.id, subtotal);
 
-    const category = line.taxCategoryId
-      ? (await tx.taxCategory.findUnique({ where: { id: line.taxCategoryId }, select: { key: true } }))?.key ?? "standard"
-      : "standard";
+    const category = line.taxCategory?.key ?? "standard";
     taxableLines.push({ id: line.id, amount: subtotal, category: category as TaxableLine["category"] });
   }
 

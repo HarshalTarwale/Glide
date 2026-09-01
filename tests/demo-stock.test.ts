@@ -95,7 +95,7 @@ describeWithDb("demo opening stock", () => {
     }
 
     const finalLevels = await getStockLevels(ctx);
-    const totalValue = finalLevels.reduce((sum, l) => sum + l.value, 0);
+    const totalValue = finalLevels.reduce((sum, l) => sum + (l.value ?? 0), 0);
     console.log(`\n  Received opening stock for ${received} SKU(s). Total stock value now ~${totalValue}.\n`);
 
     expect(finalLevels.some((l) => l.onHand > 0)).toBe(true);

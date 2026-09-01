@@ -5,6 +5,7 @@ import {
   Building2,
   Contact,
   FileText,
+  History,
   LayoutDashboard,
   Receipt,
   Settings,
@@ -69,6 +70,7 @@ export const NAV: NavGroup[] = [
     label: "Setup",
     items: [
       { label: "Reports", href: "/app/reports", icon: FileText, soon: true },
+      { label: "Audit Log", href: "/app/audit", icon: History, permission: "core:audit:read" },
       { label: "Settings", href: "/app/settings", icon: Settings, permission: "core:settings:read" },
     ],
   },

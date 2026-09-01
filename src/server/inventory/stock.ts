@@ -3,7 +3,7 @@ import "server-only";
 import { z } from "zod";
 import { Prisma } from "@/generated/prisma/client";
 import { withTenant, type TenantTransaction } from "@/lib/db/tenant-client";
-import { assertPermission } from "@/lib/auth/permissions";
+import { assertPermission, canSeeCost } from "@/lib/auth/permissions";
 import { applyValuationEvent, ZERO_BALANCE } from "@/lib/inventory/avco";
 import type { RequestContext } from "@/server/context";
 
@@ -34,7 +34,9 @@ export interface StockMoveDTO {
   fromLocationCode: string;
   toLocationCode: string;
   quantity: number;
-  unitCost: number;
+  /// Layer 4: null for a role without canSeeCost (e.g. Warehouse — see
+  /// lib/auth/permissions.ts's canSeeCost doc comment).
+  unitCost: number | null;
   reference: string | null;
   movedAt: string;
 }
@@ -45,8 +47,9 @@ export interface StockLevelDTO {
   name: string;
   uomCode: string;
   onHand: number;
-  averageCost: number;
-  value: number;
+  /// Layer 4: null for a role without canSeeCost.
+  averageCost: number | null;
+  value: number | null;
   reorderPoint: number | null;
   isLow: boolean;
 }
@@ -436,6 +439,8 @@ export async function getStockLevels(ctx: RequestContext): Promise<StockLevelDTO
       latestLayers.map((l) => [l.productId, { qty: Number(l.balanceQty), value: Number(l.balanceValue) }])
     );
 
+    const showCost = canSeeCost(ctx);
+
     return products.map((p) => {
       const onHand = onHandByProduct.get(p.id) ?? 0;
       const val = valuationByProduct.get(p.id);
@@ -447,8 +452,8 @@ export async function getStockLevels(ctx: RequestContext): Promise<StockLevelDTO
         name: p.name,
         uomCode: p.uom.code,
         onHand,
-        averageCost: avgCost,
-        value: Math.round(onHand * avgCost * 100) / 100,
+        averageCost: showCost ? avgCost : null,
+        value: showCost ? Math.round(onHand * avgCost * 100) / 100 : null,
         reorderPoint,
         isLow: reorderPoint !== null && onHand < reorderPoint,
       };
@@ -471,6 +476,8 @@ export async function listMoves(ctx: RequestContext, productId?: string): Promis
       take: 200,
     });
 
+    const showCost = canSeeCost(ctx);
+
     return rows.map((r) => ({
       id: r.id,
       type: r.type as MoveKind,
@@ -479,7 +486,7 @@ export async function listMoves(ctx: RequestContext, productId?: string): Promis
       fromLocationCode: r.fromLocation.code,
       toLocationCode: r.toLocation.code,
       quantity: Number(r.quantity.toString()),
-      unitCost: Number(r.unitCost.toString()),
+      unitCost: showCost ? Number(r.unitCost.toString()) : null,
       reference: r.reference,
       movedAt: r.movedAt.toISOString(),
     }));

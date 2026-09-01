@@ -47,7 +47,11 @@ export function StockPageView({
     router.refresh();
   }
 
-  const totalValue = levels.reduce((sum, l) => sum + l.value, 0);
+  // null when the viewer's role can't see cost/valuation data at all (Layer
+  // 4 -- see lib/auth/permissions.ts's canSeeCost), not when it's merely
+  // zero -- summing nulls as 0 would silently show "$0 total value" to a
+  // Warehouse-role user instead of hiding the figure.
+  const totalValue = levels.some((l) => l.value === null) ? null : levels.reduce((sum, l) => sum + (l.value ?? 0), 0);
   const lowCount = levels.filter((l) => l.isLow).length;
 
   return (
@@ -59,7 +63,13 @@ export function StockPageView({
           live ? (
             <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
               <span>
-                On-hand across all warehouses · total value <Money value={totalValue} className="font-medium" />
+                On-hand across all warehouses
+                {totalValue !== null ? (
+                  <>
+                    {" "}
+                    · total value <Money value={totalValue} className="font-medium" />
+                  </>
+                ) : null}
               </span>
               {lowCount > 0 ? (
                 <span className="flex items-center gap-1 text-warning">

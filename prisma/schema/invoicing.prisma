@@ -182,6 +182,10 @@ model CreditNoteLine {
   invoiceLine InvoiceLine @relation(fields: [invoiceLineId], references: [id])
 
   @@index([tenantId, creditNoteId])
+  /// alreadyCredited() (credit-notes.ts) filters purely on invoiceLineId --
+  /// the remaining-creditable-quantity check that runs on every credit note
+  /// created against a line.
+  @@index([tenantId, invoiceLineId])
   @@map("credit_note_line")
 }
 

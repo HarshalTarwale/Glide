@@ -164,6 +164,14 @@ model Membership {
 
   @@unique([tenantId, userId])
   @@index([tenantId])
+  /// The RLS bootstrap policy (migration 00000000000001_rls) filters this
+  /// table by `"userId" = app_current_user()` ALONE, before any tenant
+  /// context exists -- getContext()'s "which tenants am I in" step, which
+  /// runs on every authenticated request. Neither the unique above (leads
+  /// with tenantId) nor the tenantId-only index covers a userId-only
+  /// lookup; this is the one index in the whole schema serving a query
+  /// that fires more often than any other.
+  @@index([userId])
   @@map("membership")
 }
 

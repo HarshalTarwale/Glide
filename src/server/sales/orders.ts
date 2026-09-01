@@ -198,7 +198,14 @@ async function resolveBuyerParty(tx: TenantTransaction, partnerId: string): Prom
 /* ------------------------------------------------------------------ */
 
 async function recomputeOrder(tx: TenantTransaction, tenantId: string, orderId: string) {
-  const order = await tx.salesOrder.findUniqueOrThrow({ where: { id: orderId }, include: { lines: true } });
+  // taxCategory is included here (one JOIN) rather than looked up per line
+  // inside the loop below -- the loop used to run one findUnique per line,
+  // an N+1 that fires on every single order mutation. See the P5 index/N+1
+  // pass in docs/roadmap.md.
+  const order = await tx.salesOrder.findUniqueOrThrow({
+    where: { id: orderId },
+    include: { lines: { include: { taxCategory: { select: { key: true } } } } },
+  });
   const [seller, buyer] = await Promise.all([
     resolveSellerParty(tx, order.companyId),
     resolveBuyerParty(tx, order.partnerId),
@@ -215,9 +222,7 @@ async function recomputeOrder(tx: TenantTransaction, tenantId: string, orderId: 
     });
     lineSubtotals.set(line.id, subtotal);
 
-    const category = line.taxCategoryId
-      ? (await tx.taxCategory.findUnique({ where: { id: line.taxCategoryId }, select: { key: true } }))?.key ?? "standard"
-      : "standard";
+    const category = line.taxCategory?.key ?? "standard";
     taxableLines.push({ id: line.id, amount: subtotal, category: category as TaxableLine["category"] });
   }
 

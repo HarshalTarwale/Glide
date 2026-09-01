@@ -2,7 +2,7 @@ import "server-only";
 
 import { z } from "zod";
 import { withTenant } from "@/lib/db/tenant-client";
-import { assertPermission } from "@/lib/auth/permissions";
+import { assertPermission, canSeeCost } from "@/lib/auth/permissions";
 import { compileQuery } from "@/lib/query/prisma-query";
 import type { RecordPage, RecordQuery } from "@/lib/query/record-query";
 import type { RequestContext } from "@/server/context";
@@ -67,14 +67,11 @@ export const productInputSchema = z.object({
 
 export type ProductInput = z.infer<typeof productInputSchema>;
 
-/**
- * Layer 4 of the permission model: cost price is hidden from roles without
- * it, in the SERIALIZER. A component that simply omitted the column would be
- * decoration — the value would still be in the payload.
- */
-function canSeeCost(ctx: RequestContext) {
-  return ctx.permissions.has("inventory:product:write") || ctx.isOwner;
-}
+// Layer 4 of the permission model: cost price is hidden from roles without
+// it, in the SERIALIZER. A component that simply omitted the column would be
+// decoration — the value would still be in the payload. canSeeCost() lives
+// in lib/auth/permissions.ts, generalised from what this file originally
+// shipped, so every module hides cost/valuation data the same way.
 
 type ProductRow = {
   id: string;

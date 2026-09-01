@@ -90,6 +90,32 @@ export function recordScopeWhere(
 }
 
 /* ------------------------------------------------------------------ */
+/* Layer 4 — field visibility                                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Cost/valuation data: unit cost, AVCO average cost, stock value, a
+ * product's cost price. Generalised from the gate P1's products.ts shipped
+ * with (`costPrice: canSeeCost(ctx) ? ... : null`) into one shared rule so
+ * every module hides the same data the same way, instead of each DTO
+ * serializer inventing its own local copy.
+ *
+ * `inventory:product:write` is the proxy for "may see cost": the roles
+ * that hold it (Owner, Administrator, Sales Manager) are exactly the ones
+ * meant to see margin-sensitive data, and the ones that don't (Warehouse,
+ * Sales Representative, Accountant's own read-only slice) are exactly the
+ * roles SYSTEM_ROLES already describes as not supposed to ("No pricing,
+ * no invoices" — Warehouse's own description).
+ *
+ * Structurally typed rather than importing RequestContext: this file is
+ * lib/auth, one layer below server/context.ts, and a lib importing from
+ * server would invert that dependency.
+ */
+export function canSeeCost(ctx: { permissions: Set<Permission>; isOwner: boolean }): boolean {
+  return ctx.permissions.has("inventory:product:write") || ctx.isOwner;
+}
+
+/* ------------------------------------------------------------------ */
 /* Built-in roles                                                      */
 /* ------------------------------------------------------------------ */
 
