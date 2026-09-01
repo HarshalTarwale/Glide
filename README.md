@@ -70,3 +70,4 @@ After adding tenant-scoped models: `npm run db:rls` to regenerate policies.
 | [design-system.md](docs/design-system.md) | Tokens, type, components, screen archetypes |
 | [architecture.md](docs/architecture.md) | Multi-tenancy, auth, data model, tax engine |
 | [roadmap.md](docs/roadmap.md) | Phased build order and per-phase done criteria |
+| [user-guide/](docs/user-guide/README.md) | End-user docs — signing up, roles, and every module, written for the person using Glide, not building it |

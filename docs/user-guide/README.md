@@ -1,0 +1,86 @@
+# Glide User Guide
+
+Glide is a business system for a small or mid-size company: define what you
+sell, track what you have in stock, sell it, and get paid — with tax handled
+correctly for India, the US, the UK, the UAE, and the EU.
+
+This guide is written for the person actually using Glide day to day, not
+for a developer. If you're looking for how Glide is built, see `docs/architecture.md`.
+
+## Guides
+
+1. **Getting started** (this page) — creating your organisation, signing in, understanding roles
+2. [Settings](./settings.md) — your company profile, tax rates, and localization
+3. [Products & Contacts](./products-and-contacts.md) — the master data everything else is built from
+4. [Inventory](./inventory.md) — warehouses, receiving stock, transfers, adjustments, stock levels
+5. [Sales](./sales.md) — quotes, orders, and deliveries
+6. [Invoicing](./invoicing.md) — invoices, credit notes, payments, and AR aging
+
+## Creating your organisation
+
+Go to `/signup`. You'll need:
+
+| Field | What it's for |
+|---|---|
+| Organisation | Your company's name in Glide. You can add more legal entities later under Settings. |
+| Country | Sets your default currency, number formatting, and which tax rules apply (GST for India, VAT for the UK/EU/UAE, sales tax for the US). You can change this later, but it's worth getting right up front. |
+| Your name, work email, password | Your own sign-in. Password needs to be at least 8 characters. |
+
+Submitting the form creates your organisation and signs you in as its
+**Owner** — the one role that can never be removed and always has full
+access.
+
+Glide comes pre-loaded with sensible starting data for your country: a
+default warehouse, standard units of measure (pieces, kilograms, etc.), and
+the standard tax categories and rates for wherever you signed up from. You
+can adjust all of it from Settings.
+
+## Signing in later
+
+Go to `/login` with the email and password you signed up with.
+
+## Roles — who can do what
+
+Every person you add to Glide holds one or more **roles**. Glide ships with
+seven:
+
+| Role | What they can do |
+|---|---|
+| **Owner** | Everything. The person who created the organisation. Cannot be removed. |
+| **Administrator** | Everything except the things reserved for the Owner (like deleting the organisation). |
+| **Sales Manager** | Full access to customers, sales orders, invoices, credit notes and payments across the whole team. Can see products and stock, but read-only. |
+| **Sales Representative** | Can create and confirm their own orders, and manage their own customers. Cannot cancel a confirmed order, and only sees their own orders — not the whole team's. |
+| **Warehouse** | Receives, moves, and adjusts stock. Cannot see cost prices or stock valuation, and has no access to pricing or invoicing. |
+| **Accountant** | Full access to invoices, credit notes, and payments. Read-only on sales orders and products. Can see the Audit Log. |
+| **Viewer** | Read-only across everything. Good for someone who needs visibility without the ability to change anything. |
+
+A person can hold more than one role — they get the sum of what every role
+they hold allows, never a restriction. Someone who is both a Sales
+Representative and a Warehouse role, for example, can do both jobs.
+
+You can see the exact permission count and record-scope for each role
+under **Settings → Roles**.
+
+> **Adding teammates:** the roles above are ready to assign, but the invite
+> flow (send someone an email invitation, they accept it, choose their
+> role) isn't built yet — it's coming as part of a later phase, alongside
+> real email delivery. For now, every organisation has exactly one user:
+> whoever signed up.
+
+## Finding your way around
+
+The left sidebar is grouped by area:
+
+- **Operations** — Inventory, Stock, Warehouses, Sales
+- **Finance** — Invoices, Payments, AR Aging
+- **Relationships** — Contacts
+- **Setup** — Audit Log, Settings
+
+Every list screen (Products, Contacts, Sales Orders, Invoices, Payments,
+the Audit Log) works the same way: a search box, quick filters, sortable
+columns, and a **New** button where you have permission to create one.
+Every record page (an individual order, invoice, or payment) shows a
+status badge, the record's own detail tabs, an activity history on the
+right, and whatever actions make sense for its current status — Glide only
+ever shows you actions that are actually legal for where a document
+currently is.

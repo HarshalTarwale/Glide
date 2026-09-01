@@ -209,13 +209,28 @@ Full UI: invoice list, standalone-create form, record page (Post / Record paymen
 
 ---
 
-### P5 — Hardening & launch
+### P5 — Hardening & launch  ·  **in progress**
 
 **Scope:** Stripe subscription billing *for Glide itself*, onboarding flow, audit-log UI, index + N+1 pass, background jobs (pg-boss), error tracking, backups, field-level permissions (layer 4), user documentation.
 
 **Done when:** someone who is not us can sign up, pay, and use it unassisted.
 
 The distinction from P4 matters: P4 makes the product work. P5 makes it a business.
+
+**Done so far, verified against live Neon:**
+
+- **Audit-log UI** (`/app/audit`) — the tenant-wide cross-entity screen `core:audit:read` has existed for since P0 but never had a screen (`src/server/core/audit.ts`'s `listAuditLog`/`listAuditEntityTypes`, filterable/sortable/paginated). Caught and fixed a real bug while building it: the list defaulted to `compileQuery`'s stable `id: asc` tiebreaker instead of newest-first, since that tiebreaker means `compileQuery`'s `orderBy` is never actually empty.
+- **Field-level permissions (layer 4)** — generalized the ad-hoc `canSeeCost()` P1's `products.ts` shipped with into a shared primitive (`lib/auth/permissions.ts`), then used it to close a real leak: unit cost, AVCO average cost, and stock value in `src/server/inventory/stock.ts` were returned unconditionally to anyone with `inventory:stock:read` — including the Warehouse role, whose own description says "No pricing, no invoices." Proven end-to-end by `tests/field-visibility.test.ts`.
+- **Index + N+1 pass** — fixed a real N+1 (`recomputeOrder`/`recomputeInvoice` ran one `taxCategory.findUnique` per line on every single order/invoice mutation; now one JOIN) and two real missing indexes: `Membership.userId` (the RLS bootstrap policy filters on it alone, before any tenant context exists — this is the single most-executed query in the app, once per authenticated request) and `CreditNoteLine.invoiceLineId`.
+- **User documentation** (`docs/user-guide/`) — a genuinely end-user-facing guide (getting started, settings, products & contacts, inventory, sales, invoicing), written and verified against the actual screens rather than the plan. Documents current real gaps honestly rather than describing unbuilt features — e.g. it says outright that inviting a teammate isn't built yet.
+
+**Deferred, needs external accounts or a concrete job to run:**
+
+- **Background jobs (pg-boss)** — no actual job exists yet in the product (no emails, no webhooks, nothing scheduled). Building the queue now would be speculative infrastructure with nothing to run; better to add it once Stripe webhooks or invitation emails give it a real job.
+- **Onboarding flow** (inviting a teammate) — needs an email provider to actually send anything.
+- **Stripe subscription billing** — needs a real Stripe account and API keys.
+- **Error tracking** — needs a Sentry (or equivalent) account and DSN.
+- **Backups** — likely just documenting Neon's built-in point-in-time recovery, not a new service, but not yet confirmed as sufficient.
 
 ---
 
