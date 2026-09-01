@@ -12,8 +12,11 @@ import { resolveRegimeId } from "@/lib/tax";
 import { getCompany } from "@/server/core/company";
 import { listTaxRates } from "@/server/core/tax-rates";
 import { withTenant } from "@/lib/db/tenant-client";
+import { listMembers } from "@/server/core/members";
+import { listPendingInvitations } from "@/server/core/invitations";
 import { OrganisationSection } from "./organisation-section";
 import { TaxRatesSection } from "./tax-rates-section";
+import { MembersSection } from "./members-section";
 
 export const metadata = { title: "Settings" };
 
@@ -22,15 +25,20 @@ export default async function SettingsPage() {
   const dbReady = isDatabaseConfigured();
   const pack = getCountry(ctx?.country ?? DEFAULT_COUNTRY);
 
-  const [company, taxRates, taxCategories] = ctx
+  const [company, taxRates, taxCategories, members, pendingInvitations, roles] = ctx
     ? await Promise.all([
         getCompany(ctx),
         listTaxRates(ctx),
         withTenant(ctx.tenantId, (tx) =>
           tx.taxCategory.findMany({ select: { id: true, key: true, name: true }, orderBy: { name: "asc" } })
         ),
+        listMembers(ctx),
+        listPendingInvitations(ctx),
+        withTenant(ctx.tenantId, (tx) =>
+          tx.role.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } })
+        ),
       ])
-    : [null, [], []];
+    : [null, [], [], [], [], []];
 
   return (
     <>
@@ -95,6 +103,14 @@ export default async function SettingsPage() {
           </Card>
 
           <TaxRatesSection rates={taxRates} taxCategories={taxCategories} defaultCountry={ctx?.country ?? DEFAULT_COUNTRY} live={Boolean(ctx)} />
+
+          <MembersSection
+            members={members}
+            pendingInvitations={pendingInvitations}
+            roles={roles}
+            currentUserId={ctx?.userId ?? ""}
+            live={Boolean(ctx)}
+          />
 
           <Card className="lg:col-span-2">
             <CardHeader>

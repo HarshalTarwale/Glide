@@ -8,6 +8,13 @@ export interface AuthFormState {
   error?: string;
 }
 
+/** Only a same-site relative path is ever honoured -- "//evil.com" or "https://evil.com" is not a path this app owns, and following it would be an open redirect. */
+function safeRedirect(next: FormDataEntryValue | null): string {
+  const value = typeof next === "string" ? next : "";
+  if (value.startsWith("/") && !value.startsWith("//")) return value;
+  return "/app";
+}
+
 export async function loginAction(
   _prev: AuthFormState,
   formData: FormData
@@ -20,7 +27,7 @@ export async function loginAction(
     await signIn("credentials", {
       email: String(formData.get("email") ?? ""),
       password: String(formData.get("password") ?? ""),
-      redirectTo: "/app",
+      redirectTo: safeRedirect(formData.get("next")),
     });
     return {};
   } catch (error) {

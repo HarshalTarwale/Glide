@@ -61,11 +61,23 @@ Representative and a Warehouse role, for example, can do both jobs.
 You can see the exact permission count and record-scope for each role
 under **Settings → Roles**.
 
-> **Adding teammates:** the roles above are ready to assign, but the invite
-> flow (send someone an email invitation, they accept it, choose their
-> role) isn't built yet — it's coming as part of a later phase, alongside
-> real email delivery. For now, every organisation has exactly one user:
-> whoever signed up.
+### Adding teammates
+
+**Settings → Members → Invite member.** Pick their email and which role(s)
+they should have. This creates a real invitation and gives you a link.
+
+There's no automatic email yet — Glide shows you the link and you send it
+however you already reach that person (Slack, WhatsApp, email yourself).
+The link is valid for 7 days and works once. If it's lost or expires,
+inviting the same address again issues a fresh one.
+
+When they open the link, they set a name and password (or, if they already
+have a Glide account from elsewhere, just sign in) and they're in — with
+exactly the role(s) you picked.
+
+From the same **Members** screen you can change anyone's roles or remove
+them later. The organisation Owner can't be changed or removed by anyone,
+including themselves.
 
 ## Finding your way around
 

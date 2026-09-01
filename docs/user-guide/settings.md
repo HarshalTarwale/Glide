@@ -54,6 +54,26 @@ Each rate has:
 | Rate | A percentage, e.g. `8.25`. |
 | Category | Which products this rate applies to — most things are "Standard"; some countries also have reduced, zero-rated, or exempt categories. |
 
+## Members
+
+Who's actually in your organisation, and what they can do. Needs
+`core:member:read` to view, `core:member:invite` to invite someone or
+change an existing member's roles, `core:member:remove` to remove one.
+
+**Inviting someone:** click **Invite member**, enter their email, and pick
+one or more roles. This creates a real invitation (valid 7 days, usable
+once) and shows you a link — there's no automatic email yet, so send it
+to them however you normally would. Re-inviting the same address issues a
+fresh link.
+
+**Pending invitations** lists everyone who's been invited but hasn't
+joined yet, with a **revoke** button if you need to cancel one.
+
+**Editing an existing member:** click the roles-pencil icon next to them
+to change what they can do, or the trash icon to remove them entirely. The
+organisation Owner can't be edited or removed by anyone — that protection
+is enforced by the server, not just hidden in the UI.
+
 ## Roles
 
 A read-only table of the seven built-in roles, how many permissions each

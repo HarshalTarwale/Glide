@@ -1,7 +1,9 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import { useActionState } from "react";
+import { useSearchParams } from "next/navigation";
 import { AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,16 +11,35 @@ import { Label } from "@/components/ui/label";
 import { Card, CardBody } from "@/components/ui/card";
 import { loginAction, type AuthFormState } from "./actions";
 
+/**
+ * useSearchParams() opts this page into client-side rendering, which Next
+ * requires wrapping in Suspense (it otherwise fails static prerendering at
+ * build time) -- the `next` param it reads carries where to return to
+ * after signing in (currently only /invite/[token]'s "sign in to accept"
+ * link sets it).
+ */
 export default function LoginPage() {
+  return (
+    <React.Suspense fallback={<Card><CardBody className="p-6" /></Card>}>
+      <LoginForm />
+    </React.Suspense>
+  );
+}
+
+function LoginForm() {
   const [state, action, pending] = useActionState<AuthFormState, FormData>(loginAction, {});
+  const next = useSearchParams().get("next");
 
   return (
     <Card>
       <CardBody className="p-6">
         <h1 className="font-display text-2xl text-ink">Sign in</h1>
-        <p className="mt-1 text-sm text-ink-muted">Welcome back.</p>
+        <p className="mt-1 text-sm text-ink-muted">
+          {next ? "Sign in to continue to your invitation." : "Welcome back."}
+        </p>
 
         <form action={action} className="mt-6 space-y-4">
+          {next ? <input type="hidden" name="next" value={next} /> : null}
           <div className="space-y-1.5">
             <Label htmlFor="email" required>
               Email

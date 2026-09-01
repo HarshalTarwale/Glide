@@ -102,6 +102,34 @@ export async function withoutTenant<T>(work: (client: typeof prisma) => Promise<
   return work(prisma);
 }
 
+/**
+ * The BOOTSTRAP path for an invitation link: identity via a token instead
+ * of a signed-in user, for the exact same reason withUser() exists for
+ * getContext() -- see migration 00000000000011_invite_token_rls. Whoever
+ * holds the token IS the authorization; this admits exactly the one
+ * Invitation row it names, nothing else.
+ *
+ * Use this ONLY to read the invitation (show "you've been invited to X").
+ * The actual accept -- creating a Membership, marking the invitation
+ * accepted -- runs under withTenant(invitation.tenantId, ...) once that's
+ * known, the normal way every other write in the app happens.
+ */
+export async function withInviteToken<T>(
+  token: string,
+  work: (tx: TenantTransaction) => Promise<T>
+): Promise<T> {
+  if (!token || token.length < 16) {
+    // Defence in depth, same reasoning as assertUuid: a malformed token
+    // means something upstream is broken and should fail loudly.
+    throw new Error("Invalid invitation token");
+  }
+
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT set_config('app.current_invite_token', ${token}, true)`;
+    return work(tx);
+  }, DEFAULT_TX_OPTIONS);
+}
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function assertUuid(value: string) {
