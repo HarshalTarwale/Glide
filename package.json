@@ -19,7 +19,8 @@
     "db:setup": "npm run db:migrate && npm run db:seed",
     "db:demo": "vitest run tests/demo-data.test.ts",
     "db:backfill": "node scripts/backfill-tenant-bootstrap.mjs",
-    "db:sync-roles": "tsx --env-file=.env scripts/sync-system-roles.ts"
+    "db:sync-roles": "tsx --env-file=.env scripts/sync-system-roles.ts",
+    "db:backup": "node scripts/backup-db.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.3",

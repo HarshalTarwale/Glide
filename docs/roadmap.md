@@ -223,6 +223,7 @@ The distinction from P4 matters: P4 makes the product work. P5 makes it a busine
 - **Field-level permissions (layer 4)** — generalized the ad-hoc `canSeeCost()` P1's `products.ts` shipped with into a shared primitive (`lib/auth/permissions.ts`), then used it to close a real leak: unit cost, AVCO average cost, and stock value in `src/server/inventory/stock.ts` were returned unconditionally to anyone with `inventory:stock:read` — including the Warehouse role, whose own description says "No pricing, no invoices." Proven end-to-end by `tests/field-visibility.test.ts`.
 - **Index + N+1 pass** — fixed a real N+1 (`recomputeOrder`/`recomputeInvoice` ran one `taxCategory.findUnique` per line on every single order/invoice mutation; now one JOIN) and two real missing indexes: `Membership.userId` (the RLS bootstrap policy filters on it alone, before any tenant context exists — this is the single most-executed query in the app, once per authenticated request) and `CreditNoteLine.invoiceLineId`.
 - **User documentation** (`docs/user-guide/`) — a genuinely end-user-facing guide (getting started, settings, products & contacts, inventory, sales, invoicing), written and verified against the actual screens rather than the plan. Documents current real gaps honestly rather than describing unbuilt features — e.g. it says outright that inviting a teammate isn't built yet.
+- **Backups** (`docs/operations.md`) — two layers: Neon's own point-in-time recovery as the primary, automatic mechanism (documented: how to verify retention, how to restore via a time-travel branch, and to actually practice a restore once), plus `scripts/backup-db.mjs` (`npm run db:backup`) as a portable `pg_dump` export for the failure mode PITR doesn't cover — losing the Neon project itself. The script's failure path is verified (missing `pg_dump` fails with a clear message); the dump-and-restore round trip has not been run end-to-end in this environment, since the Postgres client tools aren't installed here — noted honestly in the doc rather than claimed as tested.
 
 **Deferred, needs external accounts or a concrete job to run:**
 
@@ -230,7 +231,6 @@ The distinction from P4 matters: P4 makes the product work. P5 makes it a busine
 - **Onboarding flow** (inviting a teammate) — needs an email provider to actually send anything.
 - **Stripe subscription billing** — needs a real Stripe account and API keys.
 - **Error tracking** — needs a Sentry (or equivalent) account and DSN.
-- **Backups** — likely just documenting Neon's built-in point-in-time recovery, not a new service, but not yet confirmed as sufficient.
 
 ---
 
