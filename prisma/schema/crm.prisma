@@ -1,0 +1,176 @@
+// ============================================================
+// CRM — Lead → Opportunity (the pipeline) → Activity (follow-ups against
+// either, or against an existing Partner).
+//
+// P6+, confirmed with the user 2026-09-04 (Accounting/GL) then again for
+// this module. Deliberately reuses Partner (partners.prisma) rather than
+// inventing a separate "CRM contact" -- a Lead becomes a Partner on
+// conversion, the same one-model-many-roles decision partners.prisma's own
+// header comment already made for customer/supplier/contact.
+//
+// Scope boundaries, stated the same way every other module's are:
+//   - Pipeline stages are a fixed enum (OpportunityStage), not a
+//     tenant-configurable PipelineStage model. A configurable pipeline
+//     (custom stage names/order per tenant) is a real v2 feature, not
+//     built here -- the fixed stages cover the common shape (Odoo/Zoho
+//     teardown, Stage 1 research) without the extra CRUD surface of
+//     letting a tenant edit its own stage list on day one.
+//   - No email/calendar integration. Activity is a logged record of a
+//     call/email/meeting/to-do, not a scheduler that sends invites or
+//     syncs an inbox.
+//   - No lead scoring / assignment rules / marketing automation.
+// ============================================================
+
+enum LeadStatus {
+  new
+  contacted
+  qualified
+  unqualified
+  /// Terminal: converted to a Partner (+ usually an Opportunity). A
+  /// converted lead is kept, never deleted -- it's the record of where
+  /// that customer came from.
+  converted
+}
+
+enum LeadSource {
+  website
+  referral
+  cold_outreach
+  event
+  advertising
+  other
+}
+
+model Lead {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+
+  name        String
+  companyName String?
+  email       String?
+  phone       String?
+
+  source LeadSource @default(other)
+  status LeadStatus @default(new)
+
+  ownerId String? @db.Uuid
+
+  notes String?
+
+  /// Set on conversion. Kept even though the Lead's own fields become
+  /// redundant with the Partner's -- the Lead row IS the acquisition
+  /// history (source, original notes, how long it sat in each status).
+  convertedPartnerId     String?   @db.Uuid
+  convertedOpportunityId String?   @db.Uuid
+  convertedAt            DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?   @db.Uuid
+  updatedBy String?   @db.Uuid
+  deletedAt DateTime?
+
+  activities Activity[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, ownerId])
+  @@map("lead")
+}
+
+/// Fixed pipeline, per this file's header scope note. "won" and "lost" are
+/// terminal -- Opportunity.stage is the single source of truth for where a
+/// deal sits, the same way SalesOrder.status is a single derived field
+/// rather than a separate boolean pile.
+enum OpportunityStage {
+  new
+  qualified
+  proposal
+  negotiation
+  won
+  lost
+}
+
+model Opportunity {
+  id        String @id @default(uuid()) @db.Uuid
+  tenantId  String @db.Uuid
+  companyId String @db.Uuid
+
+  name      String
+  partnerId String @db.Uuid
+
+  stage OpportunityStage @default(new)
+
+  expectedValue Decimal @default(0) @db.Decimal(19, 4)
+  currency      String  @db.Char(3)
+  /// 0-100. Manually set (defaulted per stage by the service layer on
+  /// creation/stage change, but never locked to a formula) -- see
+  /// src/lib/crm/pipeline.ts's DEFAULT_PROBABILITY_BY_STAGE.
+  probability   Int     @default(0)
+
+  expectedCloseDate DateTime? @db.Date
+
+  ownerId String? @db.Uuid
+
+  /// Required once stage moves to "lost" -- the one fact a closed-lost
+  /// opportunity should never lose, the same reasoning CreditNote.reason
+  /// is required.
+  lostReason String?
+
+  notes String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?   @db.Uuid
+  updatedBy String?   @db.Uuid
+  deletedAt DateTime?
+
+  partner    Partner    @relation(fields: [partnerId], references: [id])
+  activities Activity[]
+
+  @@index([tenantId, stage])
+  @@index([tenantId, partnerId])
+  @@index([tenantId, ownerId])
+  @@map("opportunity")
+}
+
+enum ActivityType {
+  call
+  email
+  meeting
+  todo
+}
+
+/// A logged follow-up against a Lead, an Opportunity, or an existing
+/// Partner -- exactly one of leadId/opportunityId/partnerId is set. Not a
+/// scheduler (this file's header note): due date and done/not-done, no
+/// invites, no recurrence.
+model Activity {
+  id       String       @id @default(uuid()) @db.Uuid
+  tenantId String       @db.Uuid
+  type     ActivityType
+
+  subject String
+  dueDate DateTime? @db.Date
+  isDone  Boolean   @default(false)
+  doneAt  DateTime?
+
+  leadId        String? @db.Uuid
+  opportunityId String? @db.Uuid
+  partnerId     String? @db.Uuid
+
+  ownerId String? @db.Uuid
+  notes   String?
+
+  createdAt DateTime @default(now())
+  createdBy String?  @db.Uuid
+
+  lead        Lead?        @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  opportunity Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  partner     Partner?     @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, leadId])
+  @@index([tenantId, opportunityId])
+  @@index([tenantId, partnerId])
+  @@index([tenantId, ownerId, isDone])
+  @@map("activity")
+}

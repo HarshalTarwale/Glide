@@ -48,14 +48,16 @@ model Partner {
   deletedAt    DateTime?
   customFields Json      @default("{}")
 
-  parent      Partner?         @relation("PartnerHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
-  children    Partner[]        @relation("PartnerHierarchy")
-  priceList   PriceList?       @relation(fields: [priceListId], references: [id], onDelete: SetNull)
-  addresses   PartnerAddress[]
-  taxInfo     PartnerTaxInfo[]
-  salesOrders SalesOrder[]
-  invoices    Invoice[]
-  payments    Payment[]
+  parent        Partner?         @relation("PartnerHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children      Partner[]        @relation("PartnerHierarchy")
+  priceList     PriceList?       @relation(fields: [priceListId], references: [id], onDelete: SetNull)
+  addresses     PartnerAddress[]
+  taxInfo       PartnerTaxInfo[]
+  salesOrders   SalesOrder[]
+  invoices      Invoice[]
+  payments      Payment[]
+  opportunities Opportunity[]
+  activities    Activity[]
 
   @@unique([tenantId, code])
   @@index([tenantId, name])

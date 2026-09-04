@@ -7,13 +7,14 @@ import {
   Contact,
   FileText,
   History,
+  KanbanSquare,
   LayoutDashboard,
   Receipt,
   ScrollText,
   Settings,
   ShoppingCart,
   Truck,
-  Users,
+  UserPlus,
   Wallet,
 } from "lucide-react";
 
@@ -69,7 +70,8 @@ export const NAV: NavGroup[] = [
     label: "Relationships",
     items: [
       { label: "Contacts", href: "/app/contacts", icon: Contact, permission: "core:partner:read" },
-      { label: "CRM", href: "/app/crm", icon: Users, soon: true },
+      { label: "Leads", href: "/app/crm/leads", icon: UserPlus, permission: "crm:lead:read" },
+      { label: "Pipeline", href: "/app/crm/pipeline", icon: KanbanSquare, permission: "crm:opportunity:read" },
     ],
   },
   {

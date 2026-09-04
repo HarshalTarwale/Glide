@@ -16,6 +16,7 @@ for a developer. If you're looking for how Glide is built, see `docs/architectur
 5. [Sales](./sales.md) — quotes, orders, and deliveries
 6. [Invoicing](./invoicing.md) — invoices, credit notes, payments, and AR aging
 7. [Accounting](./accounting.md) — the general ledger, chart of accounts, journal entries, and financial reports
+8. [CRM](./crm.md) — leads, the sales pipeline, and follow-ups
 
 ## Creating your organisation
 
@@ -49,8 +50,8 @@ seven:
 |---|---|
 | **Owner** | Everything. The person who created the organisation. Cannot be removed. |
 | **Administrator** | Everything except the things reserved for the Owner (like deleting the organisation). |
-| **Sales Manager** | Full access to customers, sales orders, invoices, credit notes and payments across the whole team. Can see products and stock, but read-only. |
-| **Sales Representative** | Can create and confirm their own orders, and manage their own customers. Cannot cancel a confirmed order, and only sees their own orders — not the whole team's. |
+| **Sales Manager** | Full access to customers, sales orders, invoices, credit notes, payments, and CRM (leads/pipeline) across the whole team. Can see products and stock, but read-only. |
+| **Sales Representative** | Can create and confirm their own orders, manage their own customers, and work their own leads and pipeline. Cannot cancel a confirmed order, and only sees their own records — not the whole team's. |
 | **Warehouse** | Receives, moves, and adjusts stock. Cannot see cost prices or stock valuation, and has no access to pricing or invoicing. |
 | **Accountant** | Full access to invoices, credit notes, and payments. Read-only on sales orders and products. Can see the Audit Log. |
 | **Viewer** | Read-only across everything. Good for someone who needs visibility without the ability to change anything. |

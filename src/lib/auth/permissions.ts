@@ -51,6 +51,11 @@ export const PERMISSIONS = {
     journal: ["accounting:journal:read", "accounting:journal:write", "accounting:journal:post"],
     report: ["accounting:report:read"],
   },
+  crm: {
+    lead: ["crm:lead:read", "crm:lead:write", "crm:lead:convert"],
+    opportunity: ["crm:opportunity:read", "crm:opportunity:write"],
+    activity: ["crm:activity:read", "crm:activity:write"],
+  },
 } as const;
 
 /** Flat list of every permission the system knows about. */
@@ -146,13 +151,16 @@ export const SYSTEM_ROLES: SystemRole[] = [
   },
   {
     name: "Sales Manager",
-    description: "Full sales and invoicing access across the whole team.",
+    description: "Full sales, invoicing and CRM access across the whole team.",
     permissions: [
       ...PERMISSIONS.core.partner,
       ...PERMISSIONS.sales.order,
       ...PERMISSIONS.invoicing.invoice,
       ...PERMISSIONS.invoicing.creditnote,
       ...PERMISSIONS.invoicing.payment,
+      ...PERMISSIONS.crm.lead,
+      ...PERMISSIONS.crm.opportunity,
+      ...PERMISSIONS.crm.activity,
       "inventory:product:read",
       "inventory:stock:read",
       "inventory:warehouse:read",
@@ -162,7 +170,7 @@ export const SYSTEM_ROLES: SystemRole[] = [
   },
   {
     name: "Sales Representative",
-    description: "Own orders only. Cannot cancel a confirmed order.",
+    description: "Own orders and CRM records only. Cannot cancel a confirmed order.",
     permissions: [
       "core:partner:read",
       "core:partner:write",
@@ -172,6 +180,9 @@ export const SYSTEM_ROLES: SystemRole[] = [
       "inventory:product:read",
       "inventory:stock:read",
       "invoicing:invoice:read",
+      ...PERMISSIONS.crm.lead,
+      ...PERMISSIONS.crm.opportunity,
+      ...PERMISSIONS.crm.activity,
     ],
     // Layer 3 in action: same permissions, narrower row set.
     recordScope: "own_records",
