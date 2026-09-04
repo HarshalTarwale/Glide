@@ -273,7 +273,7 @@ Confirmed from the master plan, stated once here as the standard every module is
 
 ## 7. Open items carried to Stage 4
 
-1. **Domain event bus**: in-process emitter is the P0–P5 answer per §5.5. Revisit if a second in-process subscriber shows up before P6, since two consumers is usually the point an in-process emitter starts being the wrong tool.
+1. **Domain event bus**: in-process emitter is the P0–P5 answer per §5.5. Accounting/GL (P6+, `src/server/accounting/gl-subscriber.ts`) is now its first real subscriber, arriving exactly where this section predicted it would rather than before — the in-process emitter held up for one consumer as designed. Still revisit if a *second* in-process subscriber shows up, since two consumers is usually the point an in-process emitter starts being the wrong tool.
 2. **EU VAT rate table completeness**: full 27-member-state coverage is explicitly not a P1 requirement (§4.2) — confirm this is acceptable for whichever specific EU customers materialize first, since "Europe" as a priority market is broader than any v1 rate table can be.
 3. **Record-scope predicate authoring**: P0 ships the mechanism; the actual predicates per role (e.g., "salesperson sees only their own orders") get authored module-by-module as each module's roles are defined, starting P1.
 

@@ -1,4 +1,5 @@
 import {
+  BookOpenText,
   Boxes,
   Package,
   Warehouse,
@@ -8,6 +9,7 @@ import {
   History,
   LayoutDashboard,
   Receipt,
+  ScrollText,
   Settings,
   ShoppingCart,
   Truck,
@@ -56,6 +58,14 @@ export const NAV: NavGroup[] = [
     ],
   },
   {
+    label: "Accounting",
+    items: [
+      { label: "Chart of Accounts", href: "/app/accounting/accounts", icon: BookOpenText, permission: "accounting:account:read" },
+      { label: "Journal Entries", href: "/app/accounting/journal", icon: ScrollText, permission: "accounting:journal:read" },
+      { label: "Reports", href: "/app/reports", icon: FileText, permission: "accounting:report:read" },
+    ],
+  },
+  {
     label: "Relationships",
     items: [
       { label: "Contacts", href: "/app/contacts", icon: Contact, permission: "core:partner:read" },
@@ -69,7 +79,6 @@ export const NAV: NavGroup[] = [
   {
     label: "Setup",
     items: [
-      { label: "Reports", href: "/app/reports", icon: FileText, soon: true },
       { label: "Audit Log", href: "/app/audit", icon: History, permission: "core:audit:read" },
       { label: "Settings", href: "/app/settings", icon: Settings, permission: "core:settings:read" },
     ],

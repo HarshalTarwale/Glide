@@ -46,6 +46,11 @@ export const PERMISSIONS = {
     creditnote: ["invoicing:creditnote:read", "invoicing:creditnote:write"],
     payment: ["invoicing:payment:read", "invoicing:payment:write"],
   },
+  accounting: {
+    account: ["accounting:account:read", "accounting:account:write"],
+    journal: ["accounting:journal:read", "accounting:journal:write", "accounting:journal:post"],
+    report: ["accounting:report:read"],
+  },
 } as const;
 
 /** Flat list of every permission the system knows about. */
@@ -186,11 +191,14 @@ export const SYSTEM_ROLES: SystemRole[] = [
   },
   {
     name: "Accountant",
-    description: "Invoicing and payments. Read-only on operations.",
+    description: "Invoicing, payments and the general ledger. Read-only on operations.",
     permissions: [
       ...PERMISSIONS.invoicing.invoice,
       ...PERMISSIONS.invoicing.creditnote,
       ...PERMISSIONS.invoicing.payment,
+      ...PERMISSIONS.accounting.account,
+      ...PERMISSIONS.accounting.journal,
+      ...PERMISSIONS.accounting.report,
       "core:partner:read",
       "sales:order:read",
       "inventory:product:read",

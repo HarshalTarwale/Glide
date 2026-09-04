@@ -243,6 +243,19 @@ CRM → Procurement → Accounting/GL → HR → Manufacturing → BI/reporting 
 
 **Accounting/GL is the highest-value item here**, because it is what turns Glide from "operations software" into "the system of record" — and the domain-event seam built in P4 is what makes it additive rather than a rewrite.
 
+#### Accounting / GL — **built, confirmed with the user 2026-09-04**
+
+Delivered exactly on that premise: `src/server/accounting/gl-subscriber.ts` is the first real subscriber to P4's domain event bus, and `invoicing.ts`, `payments.ts` and `credit-notes.ts` were not touched to add it — the whole point of building that seam three phases early.
+
+- **Chart of accounts** (`LedgerAccount` — named that, not `Account`, because core.prisma's Auth.js integration already owns that name) — eight default accounts seeded automatically for every new tenant (`accounting-bootstrap.ts`, wired into `bootstrap-tenant.ts`) and backfilled for the two tenants that pre-dated this module (`scripts/backfill-accounting.mjs --apply`, idempotent). A tenant adds more; the eight "system" accounts (looked up by `systemKey`, never by id) have their type locked and can't be deactivated, since the auto-posting logic depends on them existing.
+- **Journal entries** — manual (`createJournalEntry` → draft → `postJournalEntry`) or automatic (posted already-final, mirroring Delivery/CreditNote's own "created already done" shape). THE invariant — debits equal credits — lives in one pure function (`src/lib/accounting/journal.ts`'s `isBalanced`), checked before every post, never in a DB trigger, so the same check runs live in the UI while drafting. Posted entries are immutable; idempotency for the auto-posted path is a real DB constraint (`(tenantId, sourceType, sourceId)` unique on `JournalEntry`), not just an in-memory check.
+- **Auto-posting**: `invoice.posted` → Dr Accounts Receivable / Cr Sales Revenue (+ Tax Payable). `payment.recorded` → Dr Cash / Cr Accounts Receivable. `creditnote.issued` → the exact reversal of the invoice posting for the credited amount. Registered once per server instance via `src/instrumentation.ts` (Next's documented, stable-since-v15 hook) — the standard, documented mechanism; the GL posting logic itself is proven by live tests, the hook's own auto-invocation by Next is standard framework behavior taken on faith from the docs, not separately smoke-tested against a running `next dev` server in this session.
+- **Reports**: Trial Balance, Income Statement, Balance Sheet (`/app/reports`, repurposing the `soon: true` nav placeholder that was already waiting for this), all built on the same pure functions the golden tests exercise directly — a report can never disagree with what the ledger actually enforced.
+
+**Scope deliberately NOT built, stated the same way the tax engine's and P2's own scope notes are** (v2, not oversights): stock movements don't emit domain events yet, so COGS/inventory postings aren't automatic (the Inventory Asset and COGS accounts exist in the default chart, waiting); no AP/Procurement postings (that module doesn't exist); no formal period-close (the Balance Sheet computes current-period net income on the fly); no multi-currency GL consolidation.
+
+Verified against live Neon: `tests/journal.test.ts` (20/20 pure-function golden cases), `tests/accounting.test.ts` (5/5 — chart-of-accounts seeding, balance enforcement, immutability, all three auto-postings with correct amounts on the correct accounts, and all three reports reconciling against real posted activity). Full suite 187/190 (3 skipped, unchanged), tsc clean, eslint clean, `next build` clean.
+
 ---
 
 ## 4. Sequencing risks

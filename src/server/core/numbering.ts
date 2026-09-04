@@ -30,6 +30,7 @@ const PREFIX: Record<string, string> = {
   invoice: "INV",
   credit_note: "CN",
   payment: "PAY",
+  journal_entry: "JE",
 };
 
 export async function nextDocumentNumber(

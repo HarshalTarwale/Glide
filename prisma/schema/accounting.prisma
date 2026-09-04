@@ -1,0 +1,145 @@
+// ============================================================
+// ACCOUNTING / GL — LedgerAccount (chart of accounts) → JournalEntry →
+// JournalEntryLine. Named LedgerAccount, not Account, because core.prisma
+// already has an Account model (Auth.js's OAuth linkage).
+//
+// P6+, confirmed with the user 2026-09-04. This is the module
+// docs/architecture.md §5.5 and §5.6 built P4's domain event bus FOR:
+// "posting a document emits a domain event; nothing about that document's
+// own code should ever need to know who's listening." GL is the first
+// real subscriber to invoice.posted / payment.recorded / creditnote.issued
+// (src/server/accounting/gl-subscriber.ts) -- P4's invoicing.ts,
+// credit-notes.ts and payments.ts are NOT touched to add this module.
+//
+// Scope boundaries, stated the same way the tax engine's US scope note and
+// P2's deferred auto-PO-from-reorder-rule are stated -- deliberate, not
+// oversights:
+//   - Auto-posting covers Invoicing (P4) only. Stock movements (P2) do not
+//     yet emit domain events, so COGS/inventory postings are not automatic
+//     in v1 -- the Inventory Asset and COGS accounts exist in the default
+//     chart for when that wiring is added, but nothing posts to them yet.
+//   - No AP/Procurement postings -- that module doesn't exist yet either.
+//   - No formal period-close / closing-entries process. The Balance Sheet
+//     computes current-period net income on the fly as an implicit equity
+//     line, the common simplification, rather than requiring a month-end
+//     closing journal entry.
+//   - No multi-currency GL translation. A journal entry is posted in the
+//     SAME currency as its source document; consolidating a multi-currency
+//     tenant's ledger into one reporting currency is not built.
+// ============================================================
+
+enum AccountType {
+  asset
+  liability
+  equity
+  revenue
+  expense
+}
+
+/// Chart of accounts. A default set is seeded per company
+/// (accounting-bootstrap.ts), the same way bootstrap-tenant.ts seeds UoM
+/// and tax categories -- a tenant can add more, but cannot rename or
+/// deactivate the ones the auto-posting logic depends on by systemKey.
+model LedgerAccount {
+  id        String @id @default(uuid()) @db.Uuid
+  tenantId  String @db.Uuid
+  companyId String @db.Uuid
+
+  code String
+  name String
+  type AccountType
+
+  /// For a display hierarchy, e.g. "1000 Assets" > "1100 Current Assets".
+  /// Not used for posting or rollups in v1 -- a flat account still reports
+  /// correctly, the hierarchy is presentation only for now.
+  parentId String? @db.Uuid
+
+  /// Well-known role the GL auto-posting logic depends on --
+  /// "accounts_receivable" | "sales_revenue" | "tax_payable" | "cash" |
+  /// "accounts_payable" | "inventory_asset" | "cost_of_goods_sold" |
+  /// "retained_earnings". Null for a tenant's own additional accounts.
+  /// @@unique with tenantId+companyId so auto-posting can look one up by
+  /// key without ambiguity.
+  systemKey String?
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  parent   LedgerAccount?     @relation("LedgerAccountTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children LedgerAccount[]    @relation("LedgerAccountTree")
+  lines    JournalEntryLine[]
+
+  @@unique([tenantId, companyId, code])
+  @@unique([tenantId, companyId, systemKey])
+  @@index([tenantId, companyId])
+  @@map("ledger_account")
+}
+
+enum JournalEntryStatus {
+  draft
+  posted
+}
+
+/// The general ledger itself. Header + balanced lines -- see
+/// src/lib/accounting/journal.ts for the pure balance-check every write
+/// path runs before a post is allowed. Posted entries are immutable, same
+/// discipline as Invoice: a correction is a new, opposite entry, never an
+/// edit.
+model JournalEntry {
+  id        String @id @default(uuid()) @db.Uuid
+  tenantId  String @db.Uuid
+  companyId String @db.Uuid
+
+  number      String
+  date        DateTime @db.Date
+  description String
+
+  status   JournalEntryStatus @default(draft)
+  postedAt DateTime?
+
+  /// Where this entry came from, when auto-posted by gl-subscriber.ts --
+  /// "Invoice" | "Payment" | "CreditNote" | null for a manual entry. The
+  /// (tenantId, sourceType, sourceId) unique constraint is what makes the
+  /// domain-event subscriber idempotent: a retried/duplicate event can
+  /// never post the same source twice, Postgres refuses the second insert.
+  sourceType String?
+  sourceId   String?
+
+  createdAt DateTime @default(now())
+  createdBy String?  @db.Uuid
+
+  lines JournalEntryLine[]
+
+  @@unique([tenantId, number])
+  @@unique([tenantId, sourceType, sourceId])
+  @@index([tenantId, companyId, date])
+  @@index([tenantId, status])
+  @@map("journal_entry")
+}
+
+model JournalEntryLine {
+  id             String @id @default(uuid()) @db.Uuid
+  tenantId       String @db.Uuid
+  journalEntryId String @db.Uuid
+  accountId      String @db.Uuid
+
+  sequence    Int
+  description String?
+  debit       Decimal @default(0) @db.Decimal(19, 4)
+  credit      Decimal @default(0) @db.Decimal(19, 4)
+
+  /// Optional subsidiary-ledger key -- lets an AR/AP-style account report
+  /// a per-partner balance (e.g. "what does this customer still owe"),
+  /// the same idea as Odoo's account.move.line.partner_id.
+  partnerId String? @db.Uuid
+
+  account LedgerAccount @relation(fields: [accountId], references: [id])
+  entry   JournalEntry  @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, journalEntryId])
+  @@index([tenantId, accountId])
+  @@index([tenantId, partnerId])
+  @@map("journal_entry_line")
+}

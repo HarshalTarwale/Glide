@@ -15,6 +15,7 @@ for a developer. If you're looking for how Glide is built, see `docs/architectur
 4. [Inventory](./inventory.md) — warehouses, receiving stock, transfers, adjustments, stock levels
 5. [Sales](./sales.md) — quotes, orders, and deliveries
 6. [Invoicing](./invoicing.md) — invoices, credit notes, payments, and AR aging
+7. [Accounting](./accounting.md) — the general ledger, chart of accounts, journal entries, and financial reports
 
 ## Creating your organisation
 
@@ -85,6 +86,7 @@ The left sidebar is grouped by area:
 
 - **Operations** — Inventory, Stock, Warehouses, Sales
 - **Finance** — Invoices, Payments, AR Aging
+- **Accounting** — Chart of Accounts, Journal Entries, Reports
 - **Relationships** — Contacts
 - **Setup** — Audit Log, Settings
 

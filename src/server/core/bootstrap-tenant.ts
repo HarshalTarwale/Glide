@@ -3,6 +3,7 @@ import "server-only";
 import type { TenantTransaction } from "@/lib/db/tenant-client";
 import { getCountry } from "@/lib/i18n/countries";
 import type { TaxCategoryKey } from "@/lib/tax";
+import { bootstrapAccounting } from "@/server/accounting/accounting-bootstrap";
 
 /**
  * Essential master data every new tenant needs before the product is usable.
@@ -164,6 +165,9 @@ export async function bootstrapTenant(
       { tenantId, kind: "adjustment", code: "ADJUST", name: "Inventory Adjustment" },
     ],
   });
+
+  // --- Chart of accounts, so the GL can post from the tenant's first day -
+  await bootstrapAccounting(tx, tenantId, companyId);
 
   return {
     uomCount: UNITS.length,
