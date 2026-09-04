@@ -36,6 +36,15 @@ async function alreadyPosted(tenantId: string, sourceType: string, sourceId: str
 }
 
 export function registerGLSubscriber(): void {
+  // A deliberate, permanent log line, not debug noise: this is the one
+  // place that confirms src/instrumentation.ts's register() hook actually
+  // ran -- the one part of this module a live-DB test cannot prove on its
+  // own, since a test calls registerGLSubscriber() directly rather than
+  // going through Next's own startup lifecycle. An operator (or this
+  // session's own smoke test) can grep server startup logs for this line
+  // to know GL auto-posting is live, not just that the code compiles.
+  console.log("[gl-subscriber] registered: invoice.posted, payment.recorded, creditnote.issued");
+
   on("invoice.posted", async (event) => {
     try {
       if (await alreadyPosted(event.tenantId, "Invoice", event.invoiceId)) return;
