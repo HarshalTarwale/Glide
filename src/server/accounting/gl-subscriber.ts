@@ -43,7 +43,7 @@ export function registerGLSubscriber(): void {
   // going through Next's own startup lifecycle. An operator (or this
   // session's own smoke test) can grep server startup logs for this line
   // to know GL auto-posting is live, not just that the code compiles.
-  console.log("[gl-subscriber] registered: invoice.posted, payment.recorded, creditnote.issued");
+  console.log("[gl-subscriber] registered: invoice.posted, payment.recorded, creditnote.issued, bill.posted, billpayment.recorded");
 
   on("invoice.posted", async (event) => {
     try {
@@ -151,6 +151,70 @@ export function registerGLSubscriber(): void {
       });
     } catch (err) {
       console.error(`[gl-subscriber] failed to post creditnote.issued for credit note ${event.creditNoteId}`, err);
+    }
+  });
+
+  on("bill.posted", async (event) => {
+    try {
+      if (await alreadyPosted(event.tenantId, "Bill", event.billId)) return;
+
+      await withTenant(event.tenantId, async (tx) => {
+        const bill = await tx.bill.findUniqueOrThrow({ where: { id: event.billId } });
+        const subtotal = Number(bill.subtotal.toString());
+        const taxTotal = Number(bill.taxTotal.toString());
+        const total = Number(bill.total.toString());
+
+        // Cost of Goods Sold, not Inventory Asset -- and Tax Payable as a
+        // DEBIT (netting down what's owed), not a separate Input Tax
+        // Credit account -- both stated explicitly as v1 simplifications
+        // in procurement.prisma's own header comment, not silent choices.
+        const keys = taxTotal > 0 ? (["cost_of_goods_sold", "accounts_payable", "tax_payable"] as const) : (["cost_of_goods_sold", "accounts_payable"] as const);
+        const accounts = await getSystemAccounts(tx, event.tenantId, event.companyId, [...keys]);
+
+        const lines = [
+          { accountId: accounts.cost_of_goods_sold.id, debit: subtotal, credit: 0, description: `Bill ${bill.number}` },
+          { accountId: accounts.accounts_payable.id, debit: 0, credit: total, partnerId: event.partnerId, description: `Bill ${bill.number}` },
+        ];
+        if (taxTotal > 0) {
+          lines.splice(1, 0, { accountId: accounts.tax_payable.id, debit: taxTotal, credit: 0, description: `Bill ${bill.number} — tax` });
+        }
+
+        await postJournalEntryDirect(tx, {
+          tenantId: event.tenantId,
+          companyId: event.companyId,
+          date: new Date(event.postedAt),
+          description: `Bill ${bill.number}`,
+          sourceType: "Bill",
+          sourceId: event.billId,
+          lines,
+        });
+      });
+    } catch (err) {
+      console.error(`[gl-subscriber] failed to post bill.posted for bill ${event.billId}`, err);
+    }
+  });
+
+  on("billpayment.recorded", async (event) => {
+    try {
+      if (await alreadyPosted(event.tenantId, "BillPayment", event.billPaymentId)) return;
+
+      await withTenant(event.tenantId, async (tx) => {
+        const accounts = await getSystemAccounts(tx, event.tenantId, event.companyId, ["accounts_payable", "cash"]);
+        await postJournalEntryDirect(tx, {
+          tenantId: event.tenantId,
+          companyId: event.companyId,
+          date: new Date(),
+          description: `Payment to supplier`,
+          sourceType: "BillPayment",
+          sourceId: event.billPaymentId,
+          lines: [
+            { accountId: accounts.accounts_payable.id, debit: event.amount, credit: 0, partnerId: event.partnerId },
+            { accountId: accounts.cash.id, debit: 0, credit: event.amount, partnerId: event.partnerId },
+          ],
+        });
+      });
+    } catch (err) {
+      console.error(`[gl-subscriber] failed to post billpayment.recorded for payment ${event.billPaymentId}`, err);
     }
   });
 }

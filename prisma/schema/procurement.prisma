@@ -1,0 +1,346 @@
+// ============================================================
+// PROCUREMENT — the mirror image of Sales (P3) + Invoicing (P4), for the
+// buying side: PurchaseOrder → Receipt (stock in) → Bill (what the
+// supplier charged) → BillPayment. P6+, confirmed with the user
+// 2026-09-05.
+//
+// Every structural decision here is the SAME decision Sales/Invoicing
+// already made, applied to the other direction of trade -- restated
+// rather than re-derived:
+//   - PurchaseOrder.status is DERIVED from qtyOrdered/qtyReceived/qtyBilled
+//     the same way SalesOrder.status is (sales.prisma's own header
+//     comment). See src/lib/procurement/order-status.ts.
+//   - billingPolicy (bill what is ordered vs. bill what is received)
+//     mirrors invoicingPolicy exactly -- the same Stage 1 finding that
+//     this must be a first-class setting.
+//   - Receipt is created already `done`, same as Delivery -- no separate
+//     pick/putaway workflow in v1.
+//   - Bill posting is one-way and immutable, same as Invoice. Bill reuses
+//     the SAME tax engine (src/lib/tax) with seller/buyer REVERSED --
+//     the supplier is the seller of record for tax purposes, we are the
+//     buyer, which is why bills.ts's resolveSellerParty resolves the
+//     PARTNER (not the Company).
+//   - BillPayment/BillPaymentAllocation is its own model, not a reuse of
+//     Payment/PaymentAllocation (invoicing.prisma) -- those are already
+//     shipped and tested against AR specifically; extending them to also
+//     carry AP would mean touching P4's schema for a P6+ module, real
+//     regression risk against nothing gained over a parallel model.
+//
+// Scope boundaries, stated the same way every other module's are:
+//   - No debit note (the AP equivalent of CreditNote) in v1 -- a bill can
+//     only be cancelled while still draft; correcting a posted bill is a
+//     real v2 feature, not built here.
+//   - Bill lines always post to Cost of Goods Sold on the GL side (see
+//     gl-subscriber.ts), never capitalized into Inventory Asset on
+//     receipt -- proper perpetual-inventory GL integration would require
+//     wiring domain events into stock moves (P2), already scoped out of
+//     Accounting/GL v1 for the identical reason. AVCO valuation itself
+//     (P2) is completely unaffected by this -- it's only the GL posting
+//     that's simplified.
+//   - Tax paid to a supplier posts to the SAME Tax Payable account bills
+//     use, as a debit netting down what's owed -- a single clearing
+//     account, not a separate Input Tax Credit asset. A defensible v1
+//     simplification for a business below the complexity where output
+//     and input tax need separate GL accounts, stated here rather than
+//     silently assumed.
+// ============================================================
+
+enum PurchaseOrderStatus {
+  draft
+  confirmed
+  partially_received
+  received
+  billed
+  cancelled
+}
+
+enum BillingPolicy {
+  bill_ordered
+  bill_received
+}
+
+model PurchaseOrder {
+  id        String @id @default(uuid()) @db.Uuid
+  tenantId  String @db.Uuid
+  companyId String @db.Uuid
+
+  number String
+
+  partnerId String @db.Uuid
+  /// Snapshot at order time, same reasoning as SalesOrder.currency.
+  currency  String @db.Char(3)
+
+  status        PurchaseOrderStatus @default(draft)
+  billingPolicy BillingPolicy       @default(bill_received)
+
+  warehouseId String @db.Uuid
+
+  orderDate           DateTime  @default(now()) @db.Date
+  expectedReceiptDate DateTime? @db.Date
+
+  buyerId String? @db.Uuid
+
+  /// Cached from lines, recomputed on every line change -- same discipline as SalesOrder.
+  subtotal Decimal @default(0) @db.Decimal(19, 4)
+  taxTotal Decimal @default(0) @db.Decimal(19, 4)
+  total    Decimal @default(0) @db.Decimal(19, 4)
+
+  notes String?
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  createdBy    String?   @db.Uuid
+  updatedBy    String?   @db.Uuid
+  deletedAt    DateTime?
+  customFields Json      @default("{}")
+
+  partner   Partner             @relation(fields: [partnerId], references: [id])
+  warehouse Warehouse           @relation(fields: [warehouseId], references: [id])
+  lines     PurchaseOrderLine[]
+  receipts  Receipt[]
+  bills     Bill[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status])
+  @@index([tenantId, partnerId])
+  @@map("purchase_order")
+}
+
+model PurchaseOrderLine {
+  id              String @id @default(uuid()) @db.Uuid
+  tenantId        String @db.Uuid
+  purchaseOrderId String @db.Uuid
+
+  sequence Int
+
+  productId   String @db.Uuid
+  /// Snapshot, same reasoning as SalesOrderLine.description.
+  description String
+
+  uomId       String  @db.Uuid
+  qtyOrdered  Decimal @db.Decimal(19, 6)
+  /// Rolled up from ReceiptLine on every receipt -- never set directly.
+  qtyReceived Decimal @default(0) @db.Decimal(19, 6)
+  /// Rolled up from BillLine on every bill -- never set directly.
+  qtyBilled   Decimal @default(0) @db.Decimal(19, 6)
+
+  /// What the supplier charges per unit -- snapshot at order time, same
+  /// reasoning as SalesOrderLine.unitPrice.
+  unitCost    Decimal @db.Decimal(19, 4)
+  discountPct Decimal @default(0) @db.Decimal(9, 4)
+
+  taxCategoryId String? @db.Uuid
+
+  subtotal  Decimal @db.Decimal(19, 4)
+  taxAmount Decimal @default(0) @db.Decimal(19, 4)
+  total     Decimal @db.Decimal(19, 4)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  product       Product       @relation(fields: [productId], references: [id])
+  uom           UnitOfMeasure @relation(fields: [uomId], references: [id])
+  taxCategory   TaxCategory?  @relation(fields: [taxCategoryId], references: [id], onDelete: SetNull)
+  receiptLines  ReceiptLine[]
+  billLines     BillLine[]
+
+  @@index([tenantId, purchaseOrderId])
+  @@map("purchase_order_line")
+}
+
+/// One goods-in event against a PO -- the buy-side mirror of Delivery.
+/// Created already `done`: v1 has no separate pick/putaway workflow, so
+/// recording one IS the act of receiving it.
+model Receipt {
+  id              String @id @default(uuid()) @db.Uuid
+  tenantId        String @db.Uuid
+  purchaseOrderId String @db.Uuid
+
+  number String
+
+  receiptDate DateTime @default(now()) @db.Date
+  notes       String?
+
+  createdAt DateTime @default(now())
+  createdBy String?  @db.Uuid
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+  lines         ReceiptLine[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, purchaseOrderId])
+  @@map("receipt")
+}
+
+/// Links back to the exact StockMove it generated -- the buy-side mirror
+/// of DeliveryLine, same "one line, one move" relationship.
+model ReceiptLine {
+  id                  String @id @default(uuid()) @db.Uuid
+  tenantId            String @db.Uuid
+  receiptId           String @db.Uuid
+  purchaseOrderLineId String @db.Uuid
+
+  productId   String  @db.Uuid
+  quantity    Decimal @db.Decimal(19, 6)
+  stockMoveId String  @unique @db.Uuid
+
+  receipt           Receipt           @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  purchaseOrderLine PurchaseOrderLine @relation(fields: [purchaseOrderLineId], references: [id])
+  product           Product           @relation(fields: [productId], references: [id])
+  stockMove         StockMove         @relation(fields: [stockMoveId], references: [id])
+
+  @@index([tenantId, receiptId])
+  @@index([tenantId, purchaseOrderLineId])
+  @@map("receipt_line")
+}
+
+enum BillStatus {
+  draft
+  posted
+  partially_paid
+  paid
+  cancelled
+}
+
+/// The buy-side mirror of Invoice. From a PO, or standalone (a general
+/// expense bill -- rent, utilities -- modeled with a service Product,
+/// same as Invoice already handles a non-stock line).
+model Bill {
+  id        String @id @default(uuid()) @db.Uuid
+  tenantId  String @db.Uuid
+  companyId String @db.Uuid
+
+  number String
+
+  partnerId String @db.Uuid
+  currency  String @db.Char(3)
+
+  purchaseOrderId String? @db.Uuid
+
+  status BillStatus @default(draft)
+
+  billDate DateTime  @default(now()) @db.Date
+  dueDate  DateTime? @db.Date
+  /// Set once, the moment status leaves draft -- same immutability
+  /// boundary as Invoice.postedAt.
+  postedAt DateTime?
+
+  subtotal   Decimal @default(0) @db.Decimal(19, 4)
+  taxTotal   Decimal @default(0) @db.Decimal(19, 4)
+  total      Decimal @default(0) @db.Decimal(19, 4)
+  amountPaid Decimal @default(0) @db.Decimal(19, 4)
+
+  /// Frozen at posting, same reasoning and shape as Invoice.taxBreakdown --
+  /// a posted bill's displayed tax split must never recalculate
+  /// differently later just because a tax rate changed since.
+  taxBreakdown Json?
+
+  notes String?
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  createdBy    String?   @db.Uuid
+  updatedBy    String?   @db.Uuid
+  deletedAt    DateTime?
+  customFields Json      @default("{}")
+
+  partner       Partner                 @relation(fields: [partnerId], references: [id])
+  purchaseOrder PurchaseOrder?          @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  lines         BillLine[]
+  allocations   BillPaymentAllocation[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status])
+  @@index([tenantId, partnerId])
+  @@index([tenantId, purchaseOrderId])
+  @@map("bill")
+}
+
+model BillLine {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  billId   String @db.Uuid
+
+  sequence Int
+
+  purchaseOrderLineId String? @db.Uuid
+
+  productId   String @db.Uuid
+  description String
+  uomId       String @db.Uuid
+
+  quantity    Decimal @db.Decimal(19, 6)
+  unitCost    Decimal @db.Decimal(19, 4)
+  discountPct Decimal @default(0) @db.Decimal(9, 4)
+
+  taxCategoryId String? @db.Uuid
+
+  subtotal  Decimal @db.Decimal(19, 4)
+  taxAmount Decimal @default(0) @db.Decimal(19, 4)
+  total     Decimal @db.Decimal(19, 4)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bill              Bill               @relation(fields: [billId], references: [id], onDelete: Cascade)
+  purchaseOrderLine PurchaseOrderLine? @relation(fields: [purchaseOrderLineId], references: [id])
+  product           Product            @relation(fields: [productId], references: [id])
+  uom               UnitOfMeasure      @relation(fields: [uomId], references: [id])
+  taxCategory       TaxCategory?       @relation(fields: [taxCategoryId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, billId])
+  @@map("bill_line")
+}
+
+/// A single payment TO a supplier. May settle parts of several bills --
+/// the same PaymentAllocation many-to-many pattern invoicing.prisma
+/// already proved out on the AR side, mirrored here for AP.
+model BillPayment {
+  id        String @id @default(uuid()) @db.Uuid
+  tenantId  String @db.Uuid
+  companyId String @db.Uuid
+  partnerId String @db.Uuid
+
+  number String
+
+  paymentDate DateTime      @default(now()) @db.Date
+  method      PaymentMethod @default(bank_transfer)
+  reference   String?
+
+  amount            Decimal @db.Decimal(19, 4)
+  currency          String  @db.Char(3)
+  /// Cached: amount minus the sum of this payment's allocations -- same
+  /// reasoning as Payment.unallocatedAmount.
+  unallocatedAmount Decimal @db.Decimal(19, 4)
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  createdBy String?  @db.Uuid
+
+  partner     Partner                 @relation(fields: [partnerId], references: [id])
+  allocations BillPaymentAllocation[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, partnerId])
+  @@map("bill_payment")
+}
+
+model BillPaymentAllocation {
+  id            String @id @default(uuid()) @db.Uuid
+  tenantId      String @db.Uuid
+  billPaymentId String @db.Uuid
+  billId        String @db.Uuid
+
+  amount Decimal @db.Decimal(19, 4)
+
+  createdAt DateTime @default(now())
+
+  billPayment BillPayment @relation(fields: [billPaymentId], references: [id], onDelete: Cascade)
+  bill        Bill        @relation(fields: [billId], references: [id])
+
+  @@index([tenantId, billPaymentId])
+  @@index([tenantId, billId])
+  @@map("bill_payment_allocation")
+}

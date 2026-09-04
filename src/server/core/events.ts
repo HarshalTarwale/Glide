@@ -47,7 +47,33 @@ export interface CreditNoteIssuedEvent {
   total: number;
 }
 
-export type DomainEvent = InvoicePostedEvent | PaymentRecordedEvent | CreditNoteIssuedEvent;
+export interface BillPostedEvent {
+  type: "bill.posted";
+  tenantId: string;
+  billId: string;
+  companyId: string;
+  partnerId: string;
+  total: number;
+  currency: string;
+  postedAt: string;
+}
+
+export interface BillPaymentRecordedEvent {
+  type: "billpayment.recorded";
+  tenantId: string;
+  billPaymentId: string;
+  companyId: string;
+  partnerId: string;
+  amount: number;
+  currency: string;
+}
+
+export type DomainEvent =
+  | InvoicePostedEvent
+  | PaymentRecordedEvent
+  | CreditNoteIssuedEvent
+  | BillPostedEvent
+  | BillPaymentRecordedEvent;
 
 type Listener<E extends DomainEvent> = (event: E) => void | Promise<void>;
 

@@ -56,10 +56,12 @@ model UnitOfMeasure {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  products         Product[]
-  purchaseProducts Product[]        @relation("PurchaseUom")
-  salesOrderLines  SalesOrderLine[]
-  invoiceLines     InvoiceLine[]
+  products           Product[]
+  purchaseProducts   Product[]           @relation("PurchaseUom")
+  salesOrderLines    SalesOrderLine[]
+  invoiceLines       InvoiceLine[]
+  purchaseOrderLines PurchaseOrderLine[]
+  billLines          BillLine[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -79,10 +81,12 @@ model TaxCategory {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  products        Product[]
-  rates           TaxRate[]
-  salesOrderLines SalesOrderLine[]
-  invoiceLines    InvoiceLine[]
+  products           Product[]
+  rates              TaxRate[]
+  salesOrderLines    SalesOrderLine[]
+  invoiceLines       InvoiceLine[]
+  purchaseOrderLines PurchaseOrderLine[]
+  billLines          BillLine[]
 
   @@unique([tenantId, key])
   @@index([tenantId])
@@ -155,20 +159,23 @@ model Product {
   deletedAt    DateTime?
   customFields Json      @default("{}")
 
-  category        ProductCategory?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  uom             UnitOfMeasure         @relation(fields: [uomId], references: [id])
-  purchaseUom     UnitOfMeasure?        @relation("PurchaseUom", fields: [purchaseUomId], references: [id], onDelete: SetNull)
-  taxCategory     TaxCategory?          @relation(fields: [taxCategoryId], references: [id], onDelete: SetNull)
-  priceItems      PriceListItem[]
+  category           ProductCategory?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  uom                UnitOfMeasure         @relation(fields: [uomId], references: [id])
+  purchaseUom        UnitOfMeasure?        @relation("PurchaseUom", fields: [purchaseUomId], references: [id], onDelete: SetNull)
+  taxCategory        TaxCategory?          @relation(fields: [taxCategoryId], references: [id], onDelete: SetNull)
+  priceItems         PriceListItem[]
   // Inventory (P2) -- see prisma/schema/inventory.prisma
-  stockMoves      StockMove[]
-  stockQuants     StockQuant[]
-  valuationLayers StockValuationLayer[]
-  lots            Lot[]
-  reorderRules    ReorderRule[]
-  salesOrderLines SalesOrderLine[]
-  deliveryLines   DeliveryLine[]
-  invoiceLines    InvoiceLine[]
+  stockMoves         StockMove[]
+  stockQuants        StockQuant[]
+  valuationLayers    StockValuationLayer[]
+  lots               Lot[]
+  reorderRules       ReorderRule[]
+  salesOrderLines    SalesOrderLine[]
+  deliveryLines      DeliveryLine[]
+  invoiceLines       InvoiceLine[]
+  purchaseOrderLines PurchaseOrderLine[]
+  receiptLines       ReceiptLine[]
+  billLines          BillLine[]
 
   @@unique([tenantId, sku])
   @@index([tenantId, name])

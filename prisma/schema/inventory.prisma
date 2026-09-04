@@ -89,6 +89,7 @@ model StockMove {
   lot          Lot?                 @relation(fields: [lotId], references: [id])
   valuation    StockValuationLayer?
   deliveryLine DeliveryLine?
+  receiptLine  ReceiptLine?
 
   @@index([tenantId, productId, movedAt])
   @@index([tenantId, fromLocationId])

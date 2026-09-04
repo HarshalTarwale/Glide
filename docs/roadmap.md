@@ -269,6 +269,20 @@ The next module in the roadmap's own stated P6+ order (Accounting/GL was pulled 
 
 Verified against live Neon: `tests/pipeline.test.ts` (12/12 pure-function golden cases), `tests/crm.test.ts` (7/7 — atomic lead conversion including the double-conversion guard, a converted lead's status becoming immutable, stage-change probability resets, the lost-reason requirement, the pipeline summary matching what the pure function computes from the same real rows, activity logging/completion, and tenant isolation). Full suite 206/209 (3 skipped, unchanged), tsc clean, eslint clean, `next build` clean.
 
+#### Procurement — **built, confirmed with the user 2026-09-05**
+
+The buy-side mirror of Sales (P3) + Invoicing (P4), closing the gap the Accounting/GL section above named explicitly as not yet built: "no AP/Procurement postings (that module doesn't exist)." It does now, and `gl-subscriber.ts` gained two more handlers for it — still the same single subscriber module, not a second one, so architecture.md §7.1's revisit trigger still hasn't fired.
+
+- **`PurchaseOrder` → `PurchaseOrderLine` → `Receipt`/`ReceiptLine` → `Bill`/`BillLine` → `BillPayment`/`BillPaymentAllocation`**, each step mirroring its Sales/Invoicing counterpart line-for-line: order status derived from qty ordered/received/billed exactly like `SalesOrder.status`; a receipt is created already `done` and calls `recordMove()` directly (`type: "receipt"`, from the `SUPPLIERS` external location into the warehouse), exactly like `Delivery` does in reverse; a bill is immutable once posted with a frozen `taxBreakdown`, exactly like `Invoice`.
+- **Seller and buyer are deliberately reversed from Invoicing**: on a Bill, the supplier (a `Partner`) is the seller of record for tax purposes and Glide's own `Company` is the buyer — the mirror image of an Invoice, not a copy of it. `resolveSellerParty`/`resolveBuyerParty` in `bills.ts` say so explicitly rather than leaving it to be inferred from field names.
+- **`BillPayment`/`BillPaymentAllocation` are their own models**, not a reuse of `Payment`/`PaymentAllocation` — a deliberate choice to avoid regression risk on P4's already-shipped, already-tested AR payment code, at the cost of some duplication. `BillingPolicy` (`bill_ordered`/`bill_received`) mirrors `InvoicingPolicy` exactly.
+- **Auto-posting**: `bill.posted` → Dr Cost of Goods Sold (+ Tax Payable, netted down rather than booked to a separate Input Tax Credit asset — a stated v1 simplification) / Cr Accounts Payable. `billpayment.recorded` → Dr Accounts Payable / Cr Cash. Idempotent via the same `(tenantId, sourceType, sourceId)` unique constraint the Accounting section already established.
+- **AP Aging** (`src/server/procurement/ap-aging.ts`, `/app/procurement/aging`) is the exact mirror of `ar-aging.ts`'s bucketing, applied to what Glide owes instead of what it's owed.
+
+**Scope deliberately NOT built, same discipline as every prior module's own notes**: no debit note (the AP equivalent of a CreditNote) — a bill can only be cancelled while still a draft; bill lines always post to Cost of Goods Sold, never capitalized to the Inventory Asset account (proper perpetual-inventory GL integration is blocked on the same P2-stock-moves-don't-emit-events gap the Accounting section already flagged); tax paid to a supplier clears through the same Tax Payable account rather than a separate Input Tax Credit asset.
+
+Verified against live Neon: `tests/procurement-order-status.test.ts` + `tests/bill-status.test.ts` (27/27 pure-function golden cases), `tests/procurement.test.ts` (6/6 — full order → receipt → bill → payment lifecycle, GL auto-posting on both `bill.posted` and `billpayment.recorded` verified against real ledger rows, post-then-edit immutability guards, AP aging against real outstanding bills, and tenant isolation). Full suite 239/242 (3 skipped, unchanged), tsc clean, eslint clean, `next build` clean.
+
 ---
 
 ## 4. Sequencing risks

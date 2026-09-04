@@ -36,9 +36,10 @@ model Warehouse {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  locations    Location[]
-  reorderRules ReorderRule[]
-  salesOrders  SalesOrder[]
+  locations      Location[]
+  reorderRules   ReorderRule[]
+  salesOrders    SalesOrder[]
+  purchaseOrders PurchaseOrder[]
 
   @@unique([tenantId, code])
   @@index([tenantId])

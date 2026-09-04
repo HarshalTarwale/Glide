@@ -47,7 +47,7 @@ export const NAV: NavGroup[] = [
       { label: "Stock", href: "/app/inventory/stock", icon: Package, permission: "inventory:stock:read" },
       { label: "Warehouses", href: "/app/inventory/warehouses", icon: Warehouse, permission: "inventory:warehouse:read" },
       { label: "Sales", href: "/app/sales", icon: ShoppingCart, permission: "sales:order:read" },
-      { label: "Purchases", href: "/app/purchases", icon: Truck, soon: true },
+      { label: "Purchase Orders", href: "/app/procurement/orders", icon: Truck, permission: "procurement:order:read" },
     ],
   },
   {
@@ -56,6 +56,9 @@ export const NAV: NavGroup[] = [
       { label: "Invoices", href: "/app/invoices", icon: Receipt, permission: "invoicing:invoice:read" },
       { label: "Payments", href: "/app/payments", icon: Wallet, permission: "invoicing:payment:read" },
       { label: "AR Aging", href: "/app/invoices/aging", icon: FileText, permission: "invoicing:invoice:read" },
+      { label: "Bills", href: "/app/procurement/bills", icon: FileText, permission: "procurement:bill:read" },
+      { label: "Supplier Payments", href: "/app/procurement/payments", icon: Wallet, permission: "procurement:payment:read" },
+      { label: "AP Aging", href: "/app/procurement/aging", icon: FileText, permission: "procurement:bill:read" },
     ],
   },
   {

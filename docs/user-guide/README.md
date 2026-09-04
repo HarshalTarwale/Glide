@@ -17,6 +17,7 @@ for a developer. If you're looking for how Glide is built, see `docs/architectur
 6. [Invoicing](./invoicing.md) — invoices, credit notes, payments, and AR aging
 7. [Accounting](./accounting.md) — the general ledger, chart of accounts, journal entries, and financial reports
 8. [CRM](./crm.md) — leads, the sales pipeline, and follow-ups
+9. [Procurement](./procurement.md) — purchase orders, receiving, bills, and supplier payments
 
 ## Creating your organisation
 
@@ -85,10 +86,10 @@ including themselves.
 
 The left sidebar is grouped by area:
 
-- **Operations** — Inventory, Stock, Warehouses, Sales
-- **Finance** — Invoices, Payments, AR Aging
+- **Operations** — Inventory, Stock, Warehouses, Sales, Purchase Orders
+- **Finance** — Invoices, Payments, AR Aging, Bills, Supplier Payments, AP Aging
 - **Accounting** — Chart of Accounts, Journal Entries, Reports
-- **Relationships** — Contacts
+- **Relationships** — Contacts, Leads, Pipeline
 - **Setup** — Audit Log, Settings
 
 Every list screen (Products, Contacts, Sales Orders, Invoices, Payments,

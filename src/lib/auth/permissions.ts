@@ -56,6 +56,17 @@ export const PERMISSIONS = {
     opportunity: ["crm:opportunity:read", "crm:opportunity:write"],
     activity: ["crm:activity:read", "crm:activity:write"],
   },
+  procurement: {
+    order: [
+      "procurement:order:read",
+      "procurement:order:write",
+      "procurement:order:confirm",
+      "procurement:order:cancel",
+    ],
+    receipt: ["procurement:receipt:write"],
+    bill: ["procurement:bill:read", "procurement:bill:write", "procurement:bill:post", "procurement:bill:cancel"],
+    payment: ["procurement:payment:read", "procurement:payment:write"],
+  },
 } as const;
 
 /** Flat list of every permission the system knows about. */
@@ -189,7 +200,7 @@ export const SYSTEM_ROLES: SystemRole[] = [
   },
   {
     name: "Warehouse",
-    description: "Stock movements and deliveries. No pricing, no invoices.",
+    description: "Stock movements, deliveries, and purchase order receiving. No pricing, no invoices or bills.",
     permissions: [
       "inventory:product:read",
       "inventory:stock:read",
@@ -197,12 +208,14 @@ export const SYSTEM_ROLES: SystemRole[] = [
       "inventory:stock:adjust",
       "inventory:warehouse:read",
       "sales:order:read",
+      "procurement:order:read",
+      ...PERMISSIONS.procurement.receipt,
     ],
     recordScope: "own_warehouse",
   },
   {
     name: "Accountant",
-    description: "Invoicing, payments and the general ledger. Read-only on operations.",
+    description: "Invoicing, bills, payments and the general ledger. Read-only on operations.",
     permissions: [
       ...PERMISSIONS.invoicing.invoice,
       ...PERMISSIONS.invoicing.creditnote,
@@ -210,6 +223,9 @@ export const SYSTEM_ROLES: SystemRole[] = [
       ...PERMISSIONS.accounting.account,
       ...PERMISSIONS.accounting.journal,
       ...PERMISSIONS.accounting.report,
+      ...PERMISSIONS.procurement.order,
+      ...PERMISSIONS.procurement.bill,
+      ...PERMISSIONS.procurement.payment,
       "core:partner:read",
       "sales:order:read",
       "inventory:product:read",
