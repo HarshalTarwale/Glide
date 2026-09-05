@@ -82,6 +82,9 @@ export const PERMISSIONS = {
       "manufacturing:workorder:cancel",
     ],
   },
+  reporting: {
+    insights: ["reporting:insights:read"],
+  },
 } as const;
 
 /** Flat list of every permission the system knows about. */

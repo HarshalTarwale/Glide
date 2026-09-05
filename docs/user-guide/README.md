@@ -20,6 +20,7 @@ for a developer. If you're looking for how Glide is built, see `docs/architectur
 9. [Procurement](./procurement.md) — purchase orders, receiving, bills, and supplier payments
 10. [HR](./hr.md) — the employee directory, departments, and leave requests
 11. [Manufacturing](./manufacturing.md) — bills of materials and work orders
+12. [Overview & Business Insights](./insights.md) — your homepage, and cross-module analytics
 
 ## Creating your organisation
 
@@ -90,7 +91,7 @@ The left sidebar is grouped by area:
 
 - **Operations** — Inventory, Stock, Warehouses, Sales, Purchase Orders, Bills of Materials, Work Orders
 - **Finance** — Invoices, Payments, AR Aging, Bills, Supplier Payments, AP Aging
-- **Accounting** — Chart of Accounts, Journal Entries, Reports
+- **Accounting** — Chart of Accounts, Journal Entries, Reports, Business Insights
 - **Relationships** — Contacts, Leads, Pipeline
 - **People** — Employees, Departments, Leave Requests, Leave Types
 - **Setup** — Audit Log, Settings

@@ -1,4 +1,5 @@
 import {
+  BarChart3,
   BookOpenText,
   Boxes,
   Package,
@@ -71,6 +72,7 @@ export const NAV: NavGroup[] = [
       { label: "Chart of Accounts", href: "/app/accounting/accounts", icon: BookOpenText, permission: "accounting:account:read" },
       { label: "Journal Entries", href: "/app/accounting/journal", icon: ScrollText, permission: "accounting:journal:read" },
       { label: "Reports", href: "/app/reports", icon: FileText, permission: "accounting:report:read" },
+      { label: "Business Insights", href: "/app/insights", icon: BarChart3, permission: "reporting:insights:read" },
     ],
   },
   {
