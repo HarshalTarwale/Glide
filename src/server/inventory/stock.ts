@@ -5,6 +5,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { withTenant, type TenantTransaction } from "@/lib/db/tenant-client";
 import { assertPermission, canSeeCost } from "@/lib/auth/permissions";
 import { applyValuationEvent, ZERO_BALANCE } from "@/lib/inventory/avco";
+import { emit, type StockValuedEvent } from "@/server/core/events";
 import type { RequestContext } from "@/server/context";
 
 /**
@@ -217,15 +218,32 @@ export async function recordMove(tx: TenantTransaction, args: RecordMoveArgs) {
   const entersOwnership = !fromOwnsStock && (toLocation.kind === "internal" || toLocation.kind === "transit");
   const leavesOwnership = fromOwnsStock && !(toLocation.kind === "internal" || toLocation.kind === "transit");
 
+  let valuationEvent: StockValuedEvent | null = null;
   if (entersOwnership || leavesOwnership) {
-    await recordValuationLayer(tx, args.tenantId, args.productId, move.id, {
+    const layer = await recordValuationLayer(tx, args.tenantId, args.productId, move.id, {
       quantity: entersOwnership ? args.quantity : -args.quantity,
       unitCost: entersOwnership ? args.unitCost : undefined,
       movedAt: move.movedAt,
     });
+    // Fire-and-forget by convention (see events.ts), but NOT emitted from
+    // here -- this function runs inside a caller-owned transaction that
+    // might still roll back. Callers collect this and emit() only after
+    // their own withTenant() resolves, exactly like every other domain
+    // event in the codebase (see e.g. invoices.ts's postInvoice).
+    valuationEvent = {
+      type: "stock.valued",
+      tenantId: args.tenantId,
+      moveId: move.id,
+      moveType: args.type,
+      productId: args.productId,
+      internalLocationId: entersOwnership ? args.toLocationId : args.fromLocationId,
+      value: layer.eventValue,
+      quantity: args.quantity,
+      movedAt: move.movedAt.toISOString(),
+    };
   }
 
-  return move;
+  return { move, valuationEvent };
 }
 
 async function upsertQuant(
@@ -290,6 +308,8 @@ async function recordValuationLayer(
       movedAt: event.movedAt,
     },
   });
+
+  return result;
 }
 
 /* ------------------------------------------------------------------ */
@@ -309,9 +329,9 @@ export async function receiveStock(ctx: RequestContext, input: ReceiveStockInput
   assertPermission(ctx.permissions, "inventory:stock:move");
   const data = receiveStockSchema.parse(input);
 
-  return withTenant(ctx.tenantId, async (tx) => {
+  const result = await withTenant(ctx.tenantId, async (tx) => {
     const suppliers = await resolveCounterpartyLocation(tx, ctx.tenantId, "external", "SUPPLIERS");
-    const move = await recordMove(tx, {
+    return recordMove(tx, {
       tenantId: ctx.tenantId,
       userId: ctx.userId,
       type: "receipt",
@@ -324,17 +344,18 @@ export async function receiveStock(ctx: RequestContext, input: ReceiveStockInput
       reference: data.reference,
       movedAt: data.movedAt,
     });
-    return move.id;
   });
+  if (result.valuationEvent) emit(result.valuationEvent);
+  return result.move.id;
 }
 
 export async function deliverStock(ctx: RequestContext, input: DeliverStockInput) {
   assertPermission(ctx.permissions, "inventory:stock:move");
   const data = deliverStockSchema.parse(input);
 
-  return withTenant(ctx.tenantId, async (tx) => {
+  const result = await withTenant(ctx.tenantId, async (tx) => {
     const customers = await resolveCounterpartyLocation(tx, ctx.tenantId, "external", "CUSTOMERS");
-    const move = await recordMove(tx, {
+    return recordMove(tx, {
       tenantId: ctx.tenantId,
       userId: ctx.userId,
       type: "delivery",
@@ -346,8 +367,9 @@ export async function deliverStock(ctx: RequestContext, input: DeliverStockInput
       reference: data.reference,
       movedAt: data.movedAt,
     });
-    return move.id;
   });
+  if (result.valuationEvent) emit(result.valuationEvent);
+  return result.move.id;
 }
 
 export async function transferStock(ctx: RequestContext, input: TransferStockInput) {
@@ -358,8 +380,8 @@ export async function transferStock(ctx: RequestContext, input: TransferStockInp
     throw new Error("Source and destination cannot be the same location.");
   }
 
-  return withTenant(ctx.tenantId, async (tx) => {
-    const move = await recordMove(tx, {
+  const result = await withTenant(ctx.tenantId, async (tx) =>
+    recordMove(tx, {
       tenantId: ctx.tenantId,
       userId: ctx.userId,
       type: "transfer",
@@ -370,9 +392,12 @@ export async function transferStock(ctx: RequestContext, input: TransferStockInp
       quantity: data.quantity,
       reference: data.reference,
       movedAt: data.movedAt,
-    });
-    return move.id;
-  });
+    })
+  );
+  // A transfer is always internal -> internal, so this is always null in
+  // practice -- checked anyway rather than assumed, in case that ever changes.
+  if (result.valuationEvent) emit(result.valuationEvent);
+  return result.move.id;
 }
 
 export async function adjustStock(ctx: RequestContext, input: AdjustStockInput) {
@@ -383,9 +408,9 @@ export async function adjustStock(ctx: RequestContext, input: AdjustStockInput) 
     throw new Error("A unit cost is required when increasing stock -- it brings new value into the company.");
   }
 
-  return withTenant(ctx.tenantId, async (tx) => {
+  const result = await withTenant(ctx.tenantId, async (tx) => {
     const adjustmentLoc = await resolveCounterpartyLocation(tx, ctx.tenantId, "adjustment", "ADJUST");
-    const move = await recordMove(tx, {
+    return recordMove(tx, {
       tenantId: ctx.tenantId,
       userId: ctx.userId,
       type: "adjustment",
@@ -398,8 +423,9 @@ export async function adjustStock(ctx: RequestContext, input: AdjustStockInput) 
       reference: data.reference ?? "Stock adjustment",
       movedAt: data.movedAt,
     });
-    return move.id;
   });
+  if (result.valuationEvent) emit(result.valuationEvent);
+  return result.move.id;
 }
 
 /* ------------------------------------------------------------------ */

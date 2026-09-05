@@ -222,7 +222,7 @@ describeWithDb("Procurement — the P6+ acceptance gate", () => {
     await expect(cancelBill(ctx, billId)).rejects.toThrow(/cannot be cancelled/);
   });
 
-  it("posting a bill auto-posts Dr Cost of Goods Sold + Tax Payable / Cr Accounts Payable via the domain event bus, without bills.ts knowing GL exists", async () => {
+  it("posting a bill auto-posts Dr Inventory Asset + Tax Payable / Cr Accounts Payable via the domain event bus, without bills.ts knowing GL exists", async () => {
     const { ctx, uomId, taxCategoryId } = await makeOwnerContext("GL Bill Co");
     tenantIds.push(ctx.tenantId);
 
@@ -243,9 +243,9 @@ describeWithDb("Procurement — the P6+ acceptance gate", () => {
     expect(entry!.totalCredit).toBe(bill!.total);
 
     const accounts = await listAccounts(ctx);
-    const cogsId = accounts.find((a) => a.systemKey === "cost_of_goods_sold")!.id;
+    const inventoryAssetId = accounts.find((a) => a.systemKey === "inventory_asset")!.id;
     const apId = accounts.find((a) => a.systemKey === "accounts_payable")!.id;
-    expect(entry!.lines.find((l) => l.accountId === cogsId)!.debit).toBe(bill!.subtotal);
+    expect(entry!.lines.find((l) => l.accountId === inventoryAssetId)!.debit).toBe(bill!.subtotal);
     expect(entry!.lines.find((l) => l.accountId === apId)!.credit).toBe(bill!.total);
 
     if (bill!.taxTotal > 0) {

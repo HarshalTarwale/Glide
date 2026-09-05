@@ -14,11 +14,16 @@
 // Scope boundaries, stated the same way the tax engine's US scope note and
 // P2's deferred auto-PO-from-reorder-rule are stated -- deliberate, not
 // oversights:
-//   - Auto-posting covers Invoicing (P4) only. Stock movements (P2) do not
-//     yet emit domain events, so COGS/inventory postings are not automatic
-//     in v1 -- the Inventory Asset and COGS accounts exist in the default
-//     chart for when that wiring is added, but nothing posts to them yet.
-//   - No AP/Procurement postings -- that module doesn't exist yet either.
+//   - Updated 2026-09-05: stock movements (P2) now emit a domain event
+//     (stock.valued) whenever a move crosses the company's ownership
+//     boundary, and gl-subscriber.ts's own stock.valued handler posts
+//     Dr Cost of Goods Sold / Cr Inventory Asset the moment a sale ships
+//     (a Delivery). Procurement's bill.posted was updated in the same
+//     pass to debit Inventory Asset instead of Cost of Goods Sold
+//     directly, closing the "not automatic in v1" gap this note used to
+//     describe. See procurement.prisma's own header for the one
+//     remaining timing gap (Inventory Asset recognised at bill time, not
+//     physical receipt time -- no GR/IR clearing yet).
 //   - No formal period-close / closing-entries process. The Balance Sheet
 //     computes current-period net income on the fly as an implicit equity
 //     line, the common simplification, rather than requiring a month-end

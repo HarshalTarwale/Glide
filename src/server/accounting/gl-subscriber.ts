@@ -43,7 +43,7 @@ export function registerGLSubscriber(): void {
   // going through Next's own startup lifecycle. An operator (or this
   // session's own smoke test) can grep server startup logs for this line
   // to know GL auto-posting is live, not just that the code compiles.
-  console.log("[gl-subscriber] registered: invoice.posted, payment.recorded, creditnote.issued, bill.posted, billpayment.recorded");
+  console.log("[gl-subscriber] registered: invoice.posted, payment.recorded, creditnote.issued, bill.posted, billpayment.recorded, stock.valued");
 
   on("invoice.posted", async (event) => {
     try {
@@ -164,15 +164,25 @@ export function registerGLSubscriber(): void {
         const taxTotal = Number(bill.taxTotal.toString());
         const total = Number(bill.total.toString());
 
-        // Cost of Goods Sold, not Inventory Asset -- and Tax Payable as a
-        // DEBIT (netting down what's owed), not a separate Input Tax
-        // Credit account -- both stated explicitly as v1 simplifications
-        // in procurement.prisma's own header comment, not silent choices.
-        const keys = taxTotal > 0 ? (["cost_of_goods_sold", "accounts_payable", "tax_payable"] as const) : (["cost_of_goods_sold", "accounts_payable"] as const);
+        // Inventory Asset, not Cost of Goods Sold, as of the stock-move-
+        // events fix (2026-09-05): a purchase increases what the company
+        // owns, it isn't an expense until the goods are actually SOLD --
+        // see this file's own "stock.valued" handler below, which posts
+        // Dr COGS / Cr Inventory Asset at the moment a sale ships. Tax
+        // Payable as a DEBIT (netting down what's owed), not a separate
+        // Input Tax Credit account, remains a stated v1 simplification
+        // from procurement.prisma's own header comment.
+        //
+        // Known, stated timing gap: Inventory Asset is recognised at BILL
+        // time here, not at physical receipt time -- goods received but
+        // not yet billed sit uncosted in the GL for however long that gap
+        // is. Proper GR/IR clearing (a genuine three-way PO/Receipt/Bill
+        // match) is real v2 scope, not assumed here.
+        const keys = taxTotal > 0 ? (["inventory_asset", "accounts_payable", "tax_payable"] as const) : (["inventory_asset", "accounts_payable"] as const);
         const accounts = await getSystemAccounts(tx, event.tenantId, event.companyId, [...keys]);
 
         const lines = [
-          { accountId: accounts.cost_of_goods_sold.id, debit: subtotal, credit: 0, description: `Bill ${bill.number}` },
+          { accountId: accounts.inventory_asset.id, debit: subtotal, credit: 0, description: `Bill ${bill.number}` },
           { accountId: accounts.accounts_payable.id, debit: 0, credit: total, partnerId: event.partnerId, description: `Bill ${bill.number}` },
         ];
         if (taxTotal > 0) {
@@ -215,6 +225,62 @@ export function registerGLSubscriber(): void {
       });
     } catch (err) {
       console.error(`[gl-subscriber] failed to post billpayment.recorded for payment ${event.billPaymentId}`, err);
+    }
+  });
+
+  // Closes the "P2 stock moves don't emit domain events" gap every P6+
+  // module's own scope notes named as future work: this is the first
+  // (and, today, only) real consumer of stock.valued.
+  //
+  // Only moveType "delivery" posts anything -- Dr Cost of Goods Sold /
+  // Cr Inventory Asset, at the AVCO cost the move was actually valued at,
+  // matching the expense to the sale the moment it physically ships
+  // (independent of when/whether it's invoiced). Every other moveType is
+  // deliberately ignored:
+  //   - "receipt": already captured by bill.posted above (Dr Inventory
+  //     Asset), so posting here too would double the entry.
+  //   - "adjustment": genuinely out of scope for this pass -- a stock
+  //     count correction/shrinkage account is real v2 work, not silently
+  //     dropped, just not built yet.
+  //   - "consumption"/"production" (Manufacturing): net to exactly zero
+  //     within Inventory Asset by construction -- a work order's produced
+  //     unitCost IS totalComponentCost / quantity (see
+  //     src/lib/manufacturing/bom.ts), so a component leaving Inventory
+  //     Asset and the finished good entering it always balance to zero.
+  //     Posting a journal entry for that would be correct but pointless:
+  //     a Dr/Cr pair on the same account for the same amount.
+  //   - "transfer": recordMove never creates a valuation layer (and so
+  //     never emits this event) for an internal->internal move at all.
+  on("stock.valued", async (event) => {
+    try {
+      if (event.moveType !== "delivery") return;
+      if (await alreadyPosted(event.tenantId, "StockMove", event.moveId)) return;
+
+      const amount = Math.abs(event.value);
+      if (amount === 0) return;
+
+      await withTenant(event.tenantId, async (tx) => {
+        const location = await tx.location.findUniqueOrThrow({ where: { id: event.internalLocationId }, select: { warehouseId: true } });
+        if (!location.warehouseId) return;
+        const warehouse = await tx.warehouse.findUniqueOrThrow({ where: { id: location.warehouseId }, select: { companyId: true } });
+
+        const accounts = await getSystemAccounts(tx, event.tenantId, warehouse.companyId, ["cost_of_goods_sold", "inventory_asset"]);
+
+        await postJournalEntryDirect(tx, {
+          tenantId: event.tenantId,
+          companyId: warehouse.companyId,
+          date: new Date(event.movedAt),
+          description: `Cost of goods sold`,
+          sourceType: "StockMove",
+          sourceId: event.moveId,
+          lines: [
+            { accountId: accounts.cost_of_goods_sold.id, debit: amount, credit: 0 },
+            { accountId: accounts.inventory_asset.id, debit: 0, credit: amount },
+          ],
+        });
+      });
+    } catch (err) {
+      console.error(`[gl-subscriber] failed to post stock.valued (delivery) for move ${event.moveId}`, err);
     }
   });
 }

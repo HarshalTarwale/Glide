@@ -6,6 +6,7 @@ import { assertPermission } from "@/lib/auth/permissions";
 import { compileQuery } from "@/lib/query/prisma-query";
 import type { RecordPage, RecordQuery } from "@/lib/query/record-query";
 import { recordMove } from "@/server/inventory/stock";
+import { emit, type StockValuedEvent } from "@/server/core/events";
 import { nextDocumentNumber } from "@/server/core/numbering";
 import { scaleBomLines, computeProducedUnitCost } from "@/lib/manufacturing/bom";
 import type { RequestContext } from "@/server/context";
@@ -249,7 +250,7 @@ export async function cancelWorkOrder(ctx: RequestContext, id: string): Promise<
 export async function completeWorkOrder(ctx: RequestContext, id: string): Promise<void> {
   assertPermission(ctx.permissions, "manufacturing:workorder:complete");
 
-  await withTenant(ctx.tenantId, async (tx) => {
+  const valuationEvents = await withTenant(ctx.tenantId, async (tx) => {
     const workOrder = await tx.workOrder.findUniqueOrThrow({ where: { id }, include: { lines: true } });
     if (workOrder.status !== "confirmed") {
       throw new Error(`Only a confirmed work order can be completed -- this one is "${workOrder.status}".`);
@@ -260,9 +261,10 @@ export async function completeWorkOrder(ctx: RequestContext, id: string): Promis
       tx.location.findFirstOrThrow({ where: { tenantId: ctx.tenantId, kind: "production", code: "PRODUCTION" } }),
     ]);
 
+    const valuationEvents: StockValuedEvent[] = [];
     let totalComponentCost = 0;
     for (const line of workOrder.lines) {
-      const move = await recordMove(tx, {
+      const { valuationEvent } = await recordMove(tx, {
         tenantId: ctx.tenantId,
         userId: ctx.userId,
         type: "consumption",
@@ -272,14 +274,16 @@ export async function completeWorkOrder(ctx: RequestContext, id: string): Promis
         quantity: Number(line.plannedQty.toString()),
         reference: workOrder.number,
       });
-      const layer = await tx.stockValuationLayer.findUnique({ where: { stockMoveId: move.id } });
-      if (layer) totalComponentCost += Math.abs(Number(layer.value.toString()));
+      if (valuationEvent) {
+        valuationEvents.push(valuationEvent);
+        totalComponentCost += Math.abs(valuationEvent.value);
+      }
     }
 
     const quantity = Number(workOrder.quantity.toString());
     const unitCost = computeProducedUnitCost(totalComponentCost, quantity);
 
-    await recordMove(tx, {
+    const { valuationEvent: productionEvent } = await recordMove(tx, {
       tenantId: ctx.tenantId,
       userId: ctx.userId,
       type: "production",
@@ -290,6 +294,7 @@ export async function completeWorkOrder(ctx: RequestContext, id: string): Promis
       unitCost,
       reference: workOrder.number,
     });
+    if (productionEvent) valuationEvents.push(productionEvent);
 
     await tx.workOrder.update({
       where: { id },
@@ -299,5 +304,15 @@ export async function completeWorkOrder(ctx: RequestContext, id: string): Promis
     await tx.auditLog.create({
       data: { tenantId: ctx.tenantId, entityType: "WorkOrder", entityId: id, action: "completed", actorId: ctx.userId, actorName: ctx.userName, changes: { unitCost: { from: null, to: unitCost } } },
     });
+
+    return valuationEvents;
   });
+
+  // Consumption + production always net to zero within the same Inventory
+  // Asset account (production's unitCost is DEFINED as totalComponentCost /
+  // quantity -- see computeProducedUnitCost), so the GL subscriber
+  // deliberately ignores both event types; emitted anyway for the same
+  // reason every stock move gets one, and so a future subscriber (a
+  // production-cost report, say) doesn't need stock.ts touched again.
+  valuationEvents.forEach(emit);
 }

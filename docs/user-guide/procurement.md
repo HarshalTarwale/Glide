@@ -86,6 +86,8 @@ Aging, applied to what Glide owes rather than what it's owed.
 
 Every posted bill and recorded supplier payment automatically creates the
 matching journal entry in [Accounting](./accounting.md) — a bill debits
-Cost of Goods Sold (and Tax Payable, if there's tax) and credits Accounts
-Payable; a payment debits Accounts Payable and credits Cash. You never
-need to post these by hand.
+Inventory (and Tax Payable, if there's tax) and credits Accounts Payable;
+a payment debits Accounts Payable and credits Cash. The cost of what you
+bought only becomes a Cost of Goods Sold expense once it's actually
+sold and shipped to a customer — see Invoicing's own note on this. You
+never need to post any of it by hand.

@@ -81,3 +81,14 @@ customer with an outstanding balance, bucketed by how overdue it is:
 Current, 1–30, 31–60, 61–90, and 90+ days past due. Only posted invoices
 with money still owed on them show up here — a credit note or a payment
 that fully settles an invoice removes it from the report.
+
+## What posts to the ledger
+
+Posting an invoice books the revenue (Dr Accounts Receivable, Cr Sales
+Revenue and Tax Payable) — but the *cost* of what you sold isn't
+recognised at that moment. It's recognised the moment the goods actually
+ship: **delivering** a sales order debits Cost of Goods Sold and credits
+Inventory, at whatever that stock was actually costed at. Revenue and
+cost of sale can land on different dates (you might invoice before you
+ship, or ship before you invoice) — Glide books each one when it
+actually happens, not both at the same time by convention.

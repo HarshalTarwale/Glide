@@ -70,6 +70,8 @@ before posting; once posted, it's permanent.
 
 > **Scope note:** the Balance Sheet folds the current year's net income
 > straight into Equity rather than requiring a formal month/year-end
-> closing step — the common simplification for a v1. Inventory movements
-> (stock received and delivered) don't post to the ledger automatically
-> yet; that wiring is a planned addition, not a current feature.
+> closing step — the common simplification for a v1. Posting a bill and
+> shipping a delivery both post to Inventory/Cost of Goods Sold
+> automatically now (see [Procurement](./procurement.md) and
+> [Invoicing](./invoicing.md)); a physical receipt with no bill yet posts
+> nothing until it's billed — a known timing gap, not a silent one.

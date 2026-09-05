@@ -9,6 +9,7 @@ import { computeTax } from "@/lib/tax";
 import type { TaxParty, TaxableLine, JurisdictionRate } from "@/lib/tax";
 import { deriveStatus, computeLineSubtotal, type LineQuantities } from "@/lib/sales/order-status";
 import { recordMove } from "@/server/inventory/stock";
+import { emit, type StockValuedEvent } from "@/server/core/events";
 import { nextDocumentNumber } from "@/server/core/numbering";
 import type { RequestContext } from "@/server/context";
 
@@ -597,7 +598,7 @@ export async function createDelivery(
   assertPermission(ctx.permissions, "sales:order:write");
   const data = createDeliveryInputSchema.parse(input);
 
-  return withTenant(ctx.tenantId, async (tx) => {
+  const result = await withTenant(ctx.tenantId, async (tx) => {
     const order = await tx.salesOrder.findUniqueOrThrow({ where: { id: orderId } });
     if (order.status === "draft" || order.status === "cancelled") {
       throw new Error(`Cannot deliver against an order that is ${order.status}.`);
@@ -622,6 +623,7 @@ export async function createDelivery(
       },
     });
 
+    const valuationEvents: StockValuedEvent[] = [];
     for (const requested of data.lines) {
       const line = await tx.salesOrderLine.findUniqueOrThrow({ where: { id: requested.salesOrderLineId } });
       const remaining = Number(line.qtyOrdered.toString()) - Number(line.qtyDelivered.toString());
@@ -629,7 +631,7 @@ export async function createDelivery(
         throw new Error(`Cannot deliver ${requested.quantity} of "${line.description}" -- only ${remaining} remain on the order.`);
       }
 
-      const move = await recordMove(tx, {
+      const { move, valuationEvent } = await recordMove(tx, {
         tenantId: ctx.tenantId,
         userId: ctx.userId,
         type: "delivery",
@@ -639,6 +641,7 @@ export async function createDelivery(
         quantity: requested.quantity,
         reference: number,
       });
+      if (valuationEvent) valuationEvents.push(valuationEvent);
 
       await tx.deliveryLine.create({
         data: {
@@ -671,6 +674,9 @@ export async function createDelivery(
       },
     });
 
-    return delivery.id;
+    return { deliveryId: delivery.id, valuationEvents };
   });
+
+  result.valuationEvents.forEach(emit);
+  return result.deliveryId;
 }

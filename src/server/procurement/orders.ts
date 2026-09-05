@@ -9,6 +9,7 @@ import { deriveStatus, computeLineSubtotal, type LineQuantities } from "@/lib/pr
 import { computeTax } from "@/lib/tax";
 import type { TaxParty, TaxableLine, JurisdictionRate } from "@/lib/tax";
 import { recordMove } from "@/server/inventory/stock";
+import { emit, type StockValuedEvent } from "@/server/core/events";
 import { nextDocumentNumber } from "@/server/core/numbering";
 import type { RequestContext } from "@/server/context";
 
@@ -500,7 +501,7 @@ export async function createReceipt(ctx: RequestContext, orderId: string, input:
   assertPermission(ctx.permissions, "procurement:receipt:write");
   const data = createReceiptInputSchema.parse(input);
 
-  return withTenant(ctx.tenantId, async (tx) => {
+  const result = await withTenant(ctx.tenantId, async (tx) => {
     const order = await tx.purchaseOrder.findUniqueOrThrow({ where: { id: orderId } });
     if (order.status === "draft" || order.status === "cancelled") {
       throw new Error(`Cannot receive against an order that is ${order.status}.`);
@@ -525,6 +526,7 @@ export async function createReceipt(ctx: RequestContext, orderId: string, input:
       },
     });
 
+    const valuationEvents: StockValuedEvent[] = [];
     for (const requested of data.lines) {
       const line = await tx.purchaseOrderLine.findUniqueOrThrow({ where: { id: requested.purchaseOrderLineId } });
       const remaining = Number(line.qtyOrdered.toString()) - Number(line.qtyReceived.toString());
@@ -532,7 +534,7 @@ export async function createReceipt(ctx: RequestContext, orderId: string, input:
         throw new Error(`Cannot receive ${requested.quantity} of "${line.description}" -- only ${remaining} remain on the order.`);
       }
 
-      const move = await recordMove(tx, {
+      const { move, valuationEvent } = await recordMove(tx, {
         tenantId: ctx.tenantId,
         userId: ctx.userId,
         type: "receipt",
@@ -543,6 +545,7 @@ export async function createReceipt(ctx: RequestContext, orderId: string, input:
         unitCost: Number(line.unitCost.toString()),
         reference: number,
       });
+      if (valuationEvent) valuationEvents.push(valuationEvent);
 
       await tx.receiptLine.create({
         data: {
@@ -572,6 +575,9 @@ export async function createReceipt(ctx: RequestContext, orderId: string, input:
       },
     });
 
-    return receipt.id;
+    return { receiptId: receipt.id, valuationEvents };
   });
+
+  result.valuationEvents.forEach(emit);
+  return result.receiptId;
 }

@@ -68,12 +68,37 @@ export interface BillPaymentRecordedEvent {
   currency: string;
 }
 
+/**
+ * Emitted by recordMove() (src/server/inventory/stock.ts) for any stock
+ * move that crosses the company's ownership boundary -- exactly the moves
+ * that already get a StockValuationLayer, never a plain internal transfer.
+ * This is the P2-stock-moves-don't-emit-events gap every P6+ module's own
+ * scope notes named as future work, closed here: the GL subscriber uses it
+ * to post Dr Cost of Goods Sold / Cr Inventory Asset when a sale ships
+ * (moveType "delivery"). Every other moveType is deliberately ignored by
+ * that handler today -- see gl-subscriber.ts's own comment on why.
+ */
+export interface StockValuedEvent {
+  type: "stock.valued";
+  tenantId: string;
+  moveId: string;
+  moveType: "receipt" | "delivery" | "transfer" | "adjustment" | "consumption" | "production";
+  productId: string;
+  /** The internal (owned-stock) location on this move's owning side -- always has a warehouse, used to resolve which company this belongs to. */
+  internalLocationId: string;
+  /** Signed: positive value entering the company's books, negative leaving. Matches StockValuationLayer.value exactly. */
+  value: number;
+  quantity: number;
+  movedAt: string;
+}
+
 export type DomainEvent =
   | InvoicePostedEvent
   | PaymentRecordedEvent
   | CreditNoteIssuedEvent
   | BillPostedEvent
-  | BillPaymentRecordedEvent;
+  | BillPaymentRecordedEvent
+  | StockValuedEvent;
 
 type Listener<E extends DomainEvent> = (event: E) => void | Promise<void>;
 

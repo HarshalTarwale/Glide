@@ -30,13 +30,14 @@
 //   - No debit note (the AP equivalent of CreditNote) in v1 -- a bill can
 //     only be cancelled while still draft; correcting a posted bill is a
 //     real v2 feature, not built here.
-//   - Bill lines always post to Cost of Goods Sold on the GL side (see
-//     gl-subscriber.ts), never capitalized into Inventory Asset on
-//     receipt -- proper perpetual-inventory GL integration would require
-//     wiring domain events into stock moves (P2), already scoped out of
-//     Accounting/GL v1 for the identical reason. AVCO valuation itself
-//     (P2) is completely unaffected by this -- it's only the GL posting
-//     that's simplified.
+//   - Updated 2026-09-05: bill lines now post to Inventory Asset, not
+//     Cost of Goods Sold (see gl-subscriber.ts's bill.posted handler) --
+//     the stock-move-events fix means Cost of Goods Sold is instead
+//     recognised when a Delivery ships (stock.valued, moveType
+//     "delivery"), matching expense to sale rather than to purchase.
+//     Known remaining gap: Inventory Asset is recognised at BILL time,
+//     not physical receipt time -- a true three-way PO/Receipt/Bill
+//     match with GR/IR clearing is still real v2 scope.
 //   - Tax paid to a supplier posts to the SAME Tax Payable account bills
 //     use, as a debit netting down what's owed -- a single clearing
 //     account, not a separate Input Tax Credit asset. A defensible v1
