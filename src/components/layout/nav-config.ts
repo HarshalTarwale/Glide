@@ -4,6 +4,7 @@ import {
   Package,
   Warehouse,
   Building2,
+  CalendarPlus,
   Contact,
   FileText,
   History,
@@ -79,7 +80,12 @@ export const NAV: NavGroup[] = [
   },
   {
     label: "People",
-    items: [{ label: "HR", href: "/app/hr", icon: Building2, soon: true }],
+    items: [
+      { label: "Employees", href: "/app/hr/employees", icon: Building2, permission: "hr:employee:read" },
+      { label: "Departments", href: "/app/hr/departments", icon: Building2, permission: "hr:employee:read" },
+      { label: "Leave Requests", href: "/app/hr/leave-requests", icon: CalendarPlus, permission: "hr:leaverequest:read" },
+      { label: "Leave Types", href: "/app/hr/leave-types", icon: CalendarPlus, permission: "hr:leavetype:read" },
+    ],
   },
   {
     label: "Setup",

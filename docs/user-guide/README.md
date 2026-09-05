@@ -18,6 +18,7 @@ for a developer. If you're looking for how Glide is built, see `docs/architectur
 7. [Accounting](./accounting.md) — the general ledger, chart of accounts, journal entries, and financial reports
 8. [CRM](./crm.md) — leads, the sales pipeline, and follow-ups
 9. [Procurement](./procurement.md) — purchase orders, receiving, bills, and supplier payments
+10. [HR](./hr.md) — the employee directory, departments, and leave requests
 
 ## Creating your organisation
 
@@ -90,6 +91,7 @@ The left sidebar is grouped by area:
 - **Finance** — Invoices, Payments, AR Aging, Bills, Supplier Payments, AP Aging
 - **Accounting** — Chart of Accounts, Journal Entries, Reports
 - **Relationships** — Contacts, Leads, Pipeline
+- **People** — Employees, Departments, Leave Requests, Leave Types
 - **Setup** — Audit Log, Settings
 
 Every list screen (Products, Contacts, Sales Orders, Invoices, Payments,

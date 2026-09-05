@@ -56,8 +56,8 @@ describeWithDb("signup flow", () => {
     expect(check.tenant.country).toBe("IN");
     expect(check.tenant.currency).toBe("INR");
     expect(check.company.name).toBe("Smoke Test Co");
-    // All 7 system roles from permissions.ts are seeded per tenant at signup.
-    expect(check.roles).toHaveLength(7);
+    // All 8 system roles from permissions.ts are seeded per tenant at signup.
+    expect(check.roles).toHaveLength(8);
     expect(check.membership.isOwner).toBe(true);
     expect(check.membership.roles[0]?.role.name).toBe("Owner");
     expect(check.audit).toHaveLength(1);

@@ -283,6 +283,19 @@ The buy-side mirror of Sales (P3) + Invoicing (P4), closing the gap the Accounti
 
 Verified against live Neon: `tests/procurement-order-status.test.ts` + `tests/bill-status.test.ts` (27/27 pure-function golden cases), `tests/procurement.test.ts` (6/6 — full order → receipt → bill → payment lifecycle, GL auto-posting on both `bill.posted` and `billpayment.recorded` verified against real ledger rows, post-then-edit immutability guards, AP aging against real outstanding bills, and tenant isolation). Full suite 239/242 (3 skipped, unchanged), tsc clean, eslint clean, `next build` clean.
 
+#### HR — **built, confirmed with the user 2026-09-05**
+
+Next in the roadmap's own stated order after Accounting/GL, CRM, and Procurement. Scoped deliberately smaller than a full HR suite: an employee directory plus leave tracking, not payroll or attendance — see hr.prisma's own header comment for the explicit boundary.
+
+- **`Department` (flat, no hierarchy) → `Employee` (self-relation for `reportsTo`) → `LeaveType` (tenant-configured, annual allocation) → `LeaveRequest`** (pending/approved/rejected/cancelled). Employee is deliberately NOT linked to a User/login — no self-service portal in this version. HR Manager (or Owner/Administrator) manages leave on an employee's behalf, the same way Accountant manages bills on a supplier's behalf in Procurement.
+- **Leave balance is derived, never a stored counter**: `src/lib/hr/leave.ts`'s `computeLeaveBalance` subtracts a year's approved `LeaveRequest.days` from `LeaveType.defaultAnnualDays` at read time — the same discipline stock-on-hand (P2) and invoice/order status (P3/P4) established, applied to a new domain. `computeLeaveDays` (business days, weekends excluded) runs once at request creation and is frozen on the row from then on, so a future change to what counts as a business day can never reshape an already-decided request.
+- **A leave request cannot overlap another pending or approved request for the same employee** (`rangesOverlap`, checked inside the creating transaction) — the same "catch it before it's a data problem" instinct as the order/invoice quantity guards elsewhere.
+- **A decision is final**: `approveLeaveRequest`/`rejectLeaveRequest` both refuse to act on a request that isn't still `pending`, and only a `pending` request can be cancelled — the correction for a bad decision is a new request, not an edit to the old one, the same posted-document philosophy every other module uses even though a leave request isn't a fiscal document.
+
+**Scope deliberately NOT built, same discipline as every prior module's own notes**: no payroll processing — `Employee.baseSalary` is reference data, nothing computes a payslip from it; no time & attendance (clock-in/out); no employee self-service portal; no recruitment/ATS or performance reviews.
+
+Verified against live Neon: `tests/leave.test.ts` (11/11 pure-function golden cases for day-counting, balance math, and overlap detection), `tests/hr.test.ts` (6/6 — employee onboarding into a department with the department's employee count kept in sync, the self-report guard, a leave request's frozen day count and derived balance matching the pure function exactly, the overlap guard, the decision-is-final guard on both approve and cancel, and tenant isolation). Full suite 256/259 (3 skipped, unchanged), tsc clean, eslint clean, `next build` clean.
+
 ---
 
 ## 4. Sequencing risks

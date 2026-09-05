@@ -67,6 +67,11 @@ export const PERMISSIONS = {
     bill: ["procurement:bill:read", "procurement:bill:write", "procurement:bill:post", "procurement:bill:cancel"],
     payment: ["procurement:payment:read", "procurement:payment:write"],
   },
+  hr: {
+    employee: ["hr:employee:read", "hr:employee:write"],
+    leaveType: ["hr:leavetype:read", "hr:leavetype:write"],
+    leaveRequest: ["hr:leaverequest:read", "hr:leaverequest:write", "hr:leaverequest:approve"],
+  },
 } as const;
 
 /** Flat list of every permission the system knows about. */
@@ -230,6 +235,17 @@ export const SYSTEM_ROLES: SystemRole[] = [
       "sales:order:read",
       "inventory:product:read",
       "core:audit:read",
+    ],
+    recordScope: null,
+  },
+  {
+    name: "HR Manager",
+    description: "Full access to the employee directory, departments, and leave management.",
+    permissions: [
+      ...PERMISSIONS.hr.employee,
+      ...PERMISSIONS.hr.leaveType,
+      ...PERMISSIONS.hr.leaveRequest,
+      "core:member:read",
     ],
     recordScope: null,
   },

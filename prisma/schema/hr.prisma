@@ -1,0 +1,179 @@
+// ============================================================
+// HR — Employee directory, departments, and leave management.
+//
+// P6+, confirmed with the user 2026-09-05: next in the roadmap's own
+// stated order after Accounting/GL, CRM, and Procurement.
+//
+// Scope boundaries, stated the same way every other module's are:
+//   - No payroll processing (payslips, tax withholding, deductions). A
+//     real payroll engine is as country-specific as the tax engine and
+//     deserves its own dedicated build, not a bolt-on here. `baseSalary`
+//     is recorded on Employee for reference only -- nothing computes a
+//     payslip from it.
+//   - No time & attendance (clock-in/out). Leave is tracked; day-to-day
+//     presence is not.
+//   - No employee self-service portal -- Employee is deliberately NOT
+//     linked to a User/login. HR Manager (or Owner/Administrator) creates
+//     and manages leave requests on an employee's behalf. A real portal
+//     (an employee requesting their own leave, seeing their own record)
+//     is a stated v2 feature, once the login-linking question gets its
+//     own design pass rather than being assumed here.
+//   - No recruitment/ATS, no performance reviews, no org-chart UI beyond
+//     the plain reports-to field.
+//
+// Leave balance is DERIVED (LeaveType.defaultAnnualDays minus the sum of
+// approved LeaveRequest.days for the current year), never a mutable
+// counter -- the same discipline stock-on-hand (P2) and invoice/order
+// status (P3/P4) already established: a number computable from a ledger
+// of facts is a bug waiting to happen the moment it's cached separately
+// and allowed to drift. See src/lib/hr/leave.ts.
+// ============================================================
+
+enum EmploymentType {
+  full_time
+  part_time
+  contract
+  intern
+}
+
+enum EmployeeStatus {
+  active
+  on_leave
+  terminated
+}
+
+model Department {
+  id        String @id @default(uuid()) @db.Uuid
+  tenantId  String @db.Uuid
+  companyId String @db.Uuid
+
+  name String
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?   @db.Uuid
+  updatedBy String?   @db.Uuid
+  deletedAt DateTime?
+
+  employees Employee[]
+
+  @@unique([tenantId, companyId, name])
+  @@map("department")
+}
+
+model Employee {
+  id        String @id @default(uuid()) @db.Uuid
+  tenantId  String @db.Uuid
+  companyId String @db.Uuid
+
+  /// Short human code, e.g. "EMP-014". Unique per tenant, same convention
+  /// as Partner.code -- optional and user-assigned, not machine-numbered
+  /// (an employee record isn't a fiscal document the way an invoice is).
+  code String?
+
+  name     String
+  email    String?
+  phone    String?
+  jobTitle String?
+
+  departmentId String? @db.Uuid
+  /// Self-relation for "who this person reports to" -- deliberately not a
+  /// separate org-chart model, the same one-model-many-uses reasoning
+  /// Partner's own parent/children hierarchy already uses.
+  reportsToId String? @db.Uuid
+
+  employmentType EmploymentType @default(full_time)
+  status         EmployeeStatus @default(active)
+
+  dateOfJoining DateTime  @db.Date
+  dateOfLeaving DateTime? @db.Date
+
+  /// Reference only -- see this file's header note. Nothing computes a
+  /// payslip from this field.
+  baseSalary Decimal? @db.Decimal(19, 4)
+  currency   String?  @db.Char(3)
+
+  notes String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?   @db.Uuid
+  updatedBy String?   @db.Uuid
+  deletedAt DateTime?
+
+  department    Department?    @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  reportsTo     Employee?      @relation("EmployeeHierarchy", fields: [reportsToId], references: [id], onDelete: SetNull)
+  directReports Employee[]     @relation("EmployeeHierarchy")
+  leaveRequests LeaveRequest[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, status])
+  @@index([tenantId, departmentId])
+  @@map("employee")
+}
+
+model LeaveType {
+  id        String @id @default(uuid()) @db.Uuid
+  tenantId  String @db.Uuid
+  companyId String @db.Uuid
+
+  name String
+  /// Short code, e.g. "ANNUAL", "SICK" -- unique per company, referenced
+  /// in the leave-request picker.
+  code String
+
+  /// Annual allocation used by the derived balance calculation.
+  defaultAnnualDays Decimal @db.Decimal(6, 2)
+  isPaid            Boolean @default(true)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?   @db.Uuid
+  updatedBy String?   @db.Uuid
+  deletedAt DateTime?
+
+  leaveRequests LeaveRequest[]
+
+  @@unique([tenantId, companyId, code])
+  @@map("leave_type")
+}
+
+enum LeaveRequestStatus {
+  pending
+  approved
+  rejected
+  cancelled
+}
+
+model LeaveRequest {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+
+  employeeId  String @db.Uuid
+  leaveTypeId String @db.Uuid
+
+  startDate DateTime @db.Date
+  endDate   DateTime @db.Date
+  /// Business days (weekends excluded), computed by
+  /// src/lib/hr/leave.ts's computeLeaveDays -- a pure function, not
+  /// user-entered, so it can never disagree with the date range chosen.
+  days Decimal @db.Decimal(6, 2)
+
+  reason String?
+  status LeaveRequestStatus @default(pending)
+
+  approvedById String?   @db.Uuid
+  approvedAt   DateTime?
+  decisionNote String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.Uuid
+
+  employee  Employee  @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, employeeId])
+  @@index([tenantId, status])
+  @@map("leave_request")
+}
