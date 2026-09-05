@@ -72,6 +72,16 @@ export const PERMISSIONS = {
     leaveType: ["hr:leavetype:read", "hr:leavetype:write"],
     leaveRequest: ["hr:leaverequest:read", "hr:leaverequest:write", "hr:leaverequest:approve"],
   },
+  manufacturing: {
+    bom: ["manufacturing:bom:read", "manufacturing:bom:write"],
+    workOrder: [
+      "manufacturing:workorder:read",
+      "manufacturing:workorder:write",
+      "manufacturing:workorder:confirm",
+      "manufacturing:workorder:complete",
+      "manufacturing:workorder:cancel",
+    ],
+  },
 } as const;
 
 /** Flat list of every permission the system knows about. */
@@ -215,6 +225,12 @@ export const SYSTEM_ROLES: SystemRole[] = [
       "sales:order:read",
       "procurement:order:read",
       ...PERMISSIONS.procurement.receipt,
+      "manufacturing:bom:read",
+      "manufacturing:workorder:read",
+      "manufacturing:workorder:write",
+      "manufacturing:workorder:confirm",
+      "manufacturing:workorder:complete",
+      "manufacturing:workorder:cancel",
     ],
     recordScope: "own_warehouse",
   },

@@ -97,10 +97,11 @@ describeWithDb("signup flow", () => {
     expect(seeded.priceLists).toHaveLength(1);
     expect(seeded.priceLists[0].currency).toBe("INR");
     expect(seeded.warehouses).toHaveLength(1);
-    // internal + 2 external counterparties + adjustment, so P2's ledger balances
-    expect(seeded.locations).toHaveLength(4);
+    // internal + 2 external counterparties + adjustment + production, so P2's ledger (and P6+ manufacturing) balances
+    expect(seeded.locations).toHaveLength(5);
     expect(seeded.locations.filter((l) => l.kind === "internal")).toHaveLength(1);
     expect(seeded.locations.filter((l) => l.kind === "adjustment")).toHaveLength(1);
+    expect(seeded.locations.filter((l) => l.kind === "production")).toHaveLength(1);
   });
 
   it("lets a brand-new tenant actually create a product", async () => {

@@ -24,7 +24,7 @@ import type { RequestContext } from "@/server/context";
  * live -- exactly the shape that makes them hard to violate by accident.
  */
 
-export type MoveKind = "receipt" | "delivery" | "transfer" | "adjustment";
+export type MoveKind = "receipt" | "delivery" | "transfer" | "adjustment" | "consumption" | "production";
 
 export interface StockMoveDTO {
   id: string;

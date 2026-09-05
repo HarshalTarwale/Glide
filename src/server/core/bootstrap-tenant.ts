@@ -163,6 +163,9 @@ export async function bootstrapTenant(
       // Balancing location for stock adjustments, so a correction is still a
       // two-sided move rather than an unexplained quantity change.
       { tenantId, kind: "adjustment", code: "ADJUST", name: "Inventory Adjustment" },
+      // Virtual counterparty for manufacturing (P6+): components leave real
+      // stock into here, the finished good leaves here into real stock.
+      { tenantId, kind: "production", code: "PRODUCTION", name: "Production" },
     ],
   });
 

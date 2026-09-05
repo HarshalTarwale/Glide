@@ -23,6 +23,12 @@ enum StockMoveType {
   delivery
   transfer
   adjustment
+  /// P6+ Manufacturing: components leaving internal stock into the virtual
+  /// PRODUCTION location when a work order completes.
+  consumption
+  /// P6+ Manufacturing: the finished good entering internal stock from the
+  /// virtual PRODUCTION location when a work order completes.
+  production
 }
 
 /// A traceable batch (lot) or unit (serial). Product.tracking selects which;

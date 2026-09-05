@@ -1,0 +1,149 @@
+// ============================================================
+// MANUFACTURING — Bill of Materials -> Work Order -> stock consumption
+// and production.
+//
+// P6+, confirmed with the user 2026-09-05: next after HR in the roadmap's
+// own stated order.
+//
+// Reuses P2's stock move ledger rather than inventing a parallel one: a
+// completed work order writes real StockMove rows (a new "PRODUCTION"
+// virtual counterparty location, alongside SUPPLIERS/CUSTOMERS/ADJUST) via
+// the exact same recordMove() primitive every other module funnels
+// through. Two new StockMoveType values, `consumption` and `production`,
+// exist purely as ledger labels -- recordMove's actual behaviour (does
+// this cross the ownership boundary, does it need FOR UPDATE, does it
+// create a valuation layer) is driven entirely by LOCATION KIND, which
+// needed no changes at all. See prisma/schema/inventory.prisma and
+// prisma/schema/locations.prisma.
+//
+// A completed work order's finished-good unit cost is computed, not
+// configured: it's the sum of what its components were actually valued at
+// when consumed (real AVCO at that moment), divided by the quantity
+// produced. This is "actual costing," the honest v1 answer -- a
+// standard-costing system (a fixed manufacturing cost per unit, with
+// variances posted separately) is a real v2 feature, not assumed here.
+//
+// Scope boundaries, stated the same way every other module's are:
+//   - No routing / work centers / labour time or machine time tracking --
+//     a work order consumes materials and produces output, full stop.
+//   - No multi-level / nested BOMs exploded automatically. A BOM's
+//     components are the literal products consumed; if a component is
+//     itself manufactured, that is a separate work order run first.
+//   - No partial completion. A work order is completed in one step, for
+//     its full planned quantity -- the same reasoning Receipt/Delivery
+//     already apply to "created already done": splitting a production run
+//     across multiple partial completions is real production-floor
+//     functionality that deserves its own design pass, not a bolt-on.
+//   - BOM components and the manufactured output must be untracked
+//     products (no lot/serial) -- recordMove's own lot requirement
+//     enforces this naturally; lot-tracked manufacturing is deferred.
+//   - No reservation of components at confirmation time. Availability is
+//     checked only at completion, the moment stock actually moves --
+//     the same "no reservation system" cut P3's own sales orders make.
+// ============================================================
+
+enum WorkOrderStatus {
+  draft
+  confirmed
+  done
+  cancelled
+}
+
+model BillOfMaterial {
+  id        String @id @default(uuid()) @db.Uuid
+  tenantId  String @db.Uuid
+  companyId String @db.Uuid
+
+  productId String @db.Uuid
+  /// How many units of the output product this BOM produces per batch.
+  /// BomLine quantities are PER BATCH -- a work order's actual component
+  /// requirement is bomLine.quantity * (workOrder.quantity / this field).
+  quantity Decimal @default(1) @db.Decimal(19, 6)
+
+  isActive Boolean @default(true)
+  notes    String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?   @db.Uuid
+  updatedBy String?   @db.Uuid
+  deletedAt DateTime?
+
+  product    Product     @relation("BomOutputProduct", fields: [productId], references: [id], onDelete: Restrict)
+  lines      BomLine[]
+  workOrders WorkOrder[]
+
+  @@index([tenantId, productId])
+  @@map("bill_of_material")
+}
+
+model BomLine {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  bomId    String @db.Uuid
+
+  componentProductId String  @db.Uuid
+  quantity            Decimal @db.Decimal(19, 6)
+  sortOrder           Int     @default(0)
+
+  bom       BillOfMaterial @relation(fields: [bomId], references: [id], onDelete: Cascade)
+  component Product        @relation("BomLineComponent", fields: [componentProductId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, bomId])
+  @@map("bom_line")
+}
+
+model WorkOrder {
+  id        String @id @default(uuid()) @db.Uuid
+  tenantId  String @db.Uuid
+  companyId String @db.Uuid
+
+  number String
+
+  bomId       String @db.Uuid
+  productId   String @db.Uuid
+  warehouseId String @db.Uuid
+
+  quantity Decimal         @db.Decimal(19, 6)
+  status   WorkOrderStatus @default(draft)
+
+  scheduledDate DateTime? @db.Date
+  completedAt   DateTime?
+  /// Set on completion -- sum of actual component costs consumed, divided
+  /// by quantity. Null until then; never user-entered.
+  unitCost      Decimal?  @db.Decimal(19, 4)
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.Uuid
+  updatedBy String?  @db.Uuid
+
+  bom       BillOfMaterial  @relation(fields: [bomId], references: [id], onDelete: Restrict)
+  product   Product         @relation("WorkOrderOutputProduct", fields: [productId], references: [id], onDelete: Restrict)
+  warehouse Warehouse       @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  lines     WorkOrderLine[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, bomId])
+  @@map("work_order")
+}
+
+model WorkOrderLine {
+  id          String @id @default(uuid()) @db.Uuid
+  tenantId    String @db.Uuid
+  workOrderId String @db.Uuid
+
+  componentProductId String  @db.Uuid
+  /// Snapshotted from the BOM whenever the work order's bom/quantity
+  /// changes while still draft; frozen the moment it's confirmed -- the
+  /// same "compute once, freeze" discipline invoice tax lines use.
+  plannedQty          Decimal @db.Decimal(19, 6)
+
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  component Product   @relation("WorkOrderLineComponent", fields: [componentProductId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, workOrderId])
+  @@map("work_order_line")
+}

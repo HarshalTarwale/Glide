@@ -5,6 +5,7 @@ import {
   Warehouse,
   Building2,
   CalendarPlus,
+  ClipboardList,
   Contact,
   FileText,
   History,
@@ -49,6 +50,8 @@ export const NAV: NavGroup[] = [
       { label: "Warehouses", href: "/app/inventory/warehouses", icon: Warehouse, permission: "inventory:warehouse:read" },
       { label: "Sales", href: "/app/sales", icon: ShoppingCart, permission: "sales:order:read" },
       { label: "Purchase Orders", href: "/app/procurement/orders", icon: Truck, permission: "procurement:order:read" },
+      { label: "Bills of Materials", href: "/app/manufacturing/boms", icon: ClipboardList, permission: "manufacturing:bom:read" },
+      { label: "Work Orders", href: "/app/manufacturing/work-orders", icon: ClipboardList, permission: "manufacturing:workorder:read" },
     ],
   },
   {

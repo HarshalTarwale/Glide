@@ -35,6 +35,7 @@ const PREFIX: Record<string, string> = {
   receipt: "GR",
   bill: "BILL",
   bill_payment: "BPAY",
+  work_order: "WO",
 };
 
 export async function nextDocumentNumber(

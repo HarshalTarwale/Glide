@@ -176,6 +176,10 @@ model Product {
   purchaseOrderLines PurchaseOrderLine[]
   receiptLines       ReceiptLine[]
   billLines          BillLine[]
+  bomsAsOutput       BillOfMaterial[]    @relation("BomOutputProduct")
+  bomLinesAsComponent      BomLine[]       @relation("BomLineComponent")
+  workOrdersAsOutput       WorkOrder[]     @relation("WorkOrderOutputProduct")
+  workOrderLinesAsComponent WorkOrderLine[] @relation("WorkOrderLineComponent")
 
   @@unique([tenantId, sku])
   @@index([tenantId, name])

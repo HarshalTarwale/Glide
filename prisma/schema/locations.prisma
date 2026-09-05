@@ -14,6 +14,10 @@ enum LocationKind {
   adjustment
   /// In transit between two internal locations.
   transit
+  /// Virtual counterparty for manufacturing consumption/output (P6+), the
+  /// same "not owned stock, just a balancing point" role SUPPLIERS/
+  /// CUSTOMERS/adjustment already play for their own operations.
+  production
 }
 
 model Warehouse {
@@ -40,6 +44,7 @@ model Warehouse {
   reorderRules   ReorderRule[]
   salesOrders    SalesOrder[]
   purchaseOrders PurchaseOrder[]
+  workOrders     WorkOrder[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
