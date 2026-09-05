@@ -72,10 +72,10 @@ under **Settings → Roles**.
 **Settings → Members → Invite member.** Pick their email and which role(s)
 they should have. This creates a real invitation and gives you a link.
 
-There's no automatic email yet — Glide shows you the link and you send it
-however you already reach that person (Slack, WhatsApp, email yourself).
-The link is valid for 7 days and works once. If it's lost or expires,
-inviting the same address again issues a fresh one.
+Glide emails them the link automatically and also shows it to you to copy,
+in case you'd rather send it another way (Slack, WhatsApp, etc.) or the
+email doesn't arrive. The link is valid for 7 days and works once. If it's
+lost or expires, inviting the same address again issues a fresh one.
 
 When they open the link, they set a name and password (or, if they already
 have a Glide account from elsewhere, just sign in) and they're in — with

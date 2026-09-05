@@ -22,10 +22,11 @@ import { inviteMemberAction } from "./actions";
 import type { RoleOption } from "./members-section";
 
 /**
- * No email delivery yet (docs/roadmap.md's P5 section) -- a successful
- * invite shows the link here for the inviter to copy and send however
- * they currently reach that person, instead of closing the dialog the way
- * every other create-dialog in the app does.
+ * Sends a real invitation email via Resend when RESEND_API_KEY/EMAIL_FROM
+ * are configured (src/lib/email/resend.ts) -- but still shows the link
+ * here regardless, for the inviter to copy and send some other way. Email
+ * delivery is best-effort: a Resend outage or a misconfigured key never
+ * blocks the invite itself, it only means emailSent comes back false.
  */
 export function InviteMemberDialog({
   open,
@@ -78,7 +79,9 @@ export function InviteMemberDialog({
           <DialogTitle>Invite a member</DialogTitle>
           <DialogDescription>
             {inviteLink
-              ? "Share this link with them -- it's valid for 7 days."
+              ? state.emailSent
+                ? "We've emailed them this link -- it's valid for 7 days. You can also copy it below to share another way."
+                : "Share this link with them -- it's valid for 7 days."
               : "They'll be added once they open the link and set a password."}
           </DialogDescription>
         </DialogHeader>

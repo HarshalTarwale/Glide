@@ -8,6 +8,8 @@ import { updateCompany, updateCompanySchema } from "@/server/core/company";
 import { createTaxRate, updateTaxRate, deleteTaxRate, taxRateInputSchema } from "@/server/core/tax-rates";
 import { updateMemberRoles, removeMember, updateMemberRolesInputSchema } from "@/server/core/members";
 import { inviteMember, revokeInvitation, inviteMemberInputSchema } from "@/server/core/invitations";
+import { sendEmail, isEmailConfigured } from "@/lib/email/resend";
+import { invitationEmailHtml } from "@/lib/email/templates";
 
 export interface ActionResult {
   ok: boolean;
@@ -15,6 +17,8 @@ export interface ActionResult {
   fieldErrors?: Record<string, string>;
   /** Set by inviteMemberAction on success -- the raw invite token, for the dialog to build a copyable link from. */
   token?: string;
+  /** Set by inviteMemberAction on success -- whether an email actually went out, so the dialog can say so. */
+  emailSent?: boolean;
 }
 
 function fieldErrorsOf(error: z.ZodError): Record<string, string> {
@@ -122,7 +126,25 @@ export async function inviteMemberAction(_prev: ActionResult, formData: FormData
     const ctx = await requireContext();
     const { token } = await inviteMember(ctx, parsed.data);
     revalidatePath("/app/settings");
-    return { ok: true, token };
+
+    // Best-effort: a broken email provider must never block the invite
+    // itself -- the dialog always shows the copyable link regardless.
+    let emailSent = false;
+    if (isEmailConfigured()) {
+      try {
+        const baseUrl = process.env.AUTH_URL ?? "http://localhost:3000";
+        await sendEmail({
+          to: parsed.data.email,
+          subject: `You're invited to join ${ctx.tenantName} on Glide`,
+          html: invitationEmailHtml({ tenantName: ctx.tenantName, inviterName: ctx.userName, roleNames: [], link: `${baseUrl}/invite/${token}` }),
+        });
+        emailSent = true;
+      } catch (error) {
+        console.error("[invitations] failed to send invite email", error);
+      }
+    }
+
+    return { ok: true, token, emailSent };
   } catch (error) {
     return { ok: false, error: describeError(error) };
   }
