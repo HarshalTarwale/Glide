@@ -1,6 +1,7 @@
 {
   "name": "glide",
   "version": "0.1.0",
+  "description": "A multi-tenant ERP for growing businesses -- inventory, sales, invoicing, accounting, CRM, procurement, HR and manufacturing in one system, with built-in tax compliance for India, the US, the UK, the EU and the UAE.",
   "private": true,
   "scripts": {
     "postinstall": "prisma generate",
